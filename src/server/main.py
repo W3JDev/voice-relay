@@ -224,7 +224,7 @@ async def startup():
     # Initialize TTS
     logger.info(f"Loading TTS model: {settings.tts_model}")
     tts = RelayTTS(
-        voice_sample=settings.tts_voice,
+        voice=settings.tts_voice,
     )
 
     # Initialize default AI backend

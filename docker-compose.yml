@@ -18,8 +18,8 @@ services:
       - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       # Settings
-      - VOICE_TTS_MODEL=${VOICE_TTS_MODEL:-kokoro}
-      - VOICE_TTS_VOICE=${VOICE_TTS_VOICE:-af_heart}
+      - OPENCLAW_TTS_MODEL=${OPENCLAW_TTS_MODEL:-kokoro}
+      - OPENCLAW_TTS_VOICE=${OPENCLAW_TTS_VOICE:-af_heart}
       - OPENCLAW_REQUIRE_AUTH=false
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8765/health"]

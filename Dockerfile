@@ -33,6 +33,6 @@ ENV OPENCLAW_REQUIRE_AUTH=false
 EXPOSE 8765
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:${PORT:-8765}/health || exit 1
+    CMD curl -f http://localhost:${OPENCLAW_PORT:-8765}/health || exit 1
 
-CMD uvicorn src.server.main:app --host 0.0.0.0 --port ${PORT:-8765}
+CMD uvicorn src.server.main:app --host 0.0.0.0 --port ${OPENCLAW_PORT:-8765}
