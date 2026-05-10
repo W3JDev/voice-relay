@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import secrets
 import uuid
 from contextlib import asynccontextmanager
@@ -163,6 +164,11 @@ class Database:
         Must be called before any other method.
         """
         logger.info(f"Opening database: {self._db_path}")
+        # Ensure the parent directory exists (handles fresh deploys where
+        # the volume mount point may not have been created yet).
+        db_dir = os.path.dirname(self._db_path)
+        if db_dir:
+            os.makedirs(db_dir, exist_ok=True)
         self._conn = await aiosqlite.connect(self._db_path)
         self._conn.row_factory = aiosqlite.Row
 

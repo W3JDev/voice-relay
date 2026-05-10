@@ -47,6 +47,8 @@ ENV OPENCLAW_PORT=8765
 ENV OPENCLAW_STT_DEVICE=cpu
 
 # SQLite persistence (volume mount at /data provided by Railway via railway.toml)
+# Pre-create /data so the app starts even if the volume isn't mounted yet
+RUN mkdir -p /data
 ENV OPENCLAW_DB_PATH=/data/voice_relay.db
 
 EXPOSE 8765
