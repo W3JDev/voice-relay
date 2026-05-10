@@ -1,56 +1,48 @@
-version: '3.8'
+# Voice Relay — Local Development
+# Relay mode (external Speaches) + optional local Speaches
 
 services:
-  openclaw-voice:
+  # The Voice Relay server
+  voice-relay:
     build: .
     ports:
       - "8765:8765"
     environment:
       - OPENCLAW_HOST=0.0.0.0
       - OPENCLAW_PORT=8765
-      - OPENCLAW_STT_MODEL=${OPENCLAW_STT_MODEL:-base}
-      - OPENCLAW_STT_DEVICE=${OPENCLAW_STT_DEVICE:-cuda}
-      - OPENCLAW_REQUIRE_AUTH=${OPENCLAW_REQUIRE_AUTH:-false}
-      - OPENCLAW_MASTER_KEY=${OPENCLAW_MASTER_KEY:-}
+      # Point at your Speaches instance for STT/TTS
+      - VSAAS_URL=${VSAAS_URL:-http://speaches:8000}
+      - VSAAS_API_KEY=${VSAAS_API_KEY:-}
+      # Point at your AI agent backend
+      - OPENCLAW_GATEWAY_URL=${OPENCLAW_GATEWAY_URL:-}
+      - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-    volumes:
-      # Persist downloaded models
-      - whisper-models:/root/.cache/huggingface
-      - ./voices:/app/voices
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-    restart: unless-stopped
+      # Settings
+      - VOICE_TTS_MODEL=${VOICE_TTS_MODEL:-kokoro}
+      - VOICE_TTS_VOICE=${VOICE_TTS_VOICE:-af_heart}
+      - OPENCLAW_REQUIRE_AUTH=false
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8765/"]
+      test: ["CMD", "curl", "-f", "http://localhost:8765/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s
+      start_period: 10s
+    restart: unless-stopped
 
-  # CPU-only version (no GPU required)
-  openclaw-voice-cpu:
-    build: .
+  # Optional: local Speaches instance
+  speaches:
+    image: ghcr.io/speaches-ai/speaches:latest
     ports:
-      - "8766:8765"
+      - "8000:8000"
     environment:
-      - OPENCLAW_HOST=0.0.0.0
-      - OPENCLAW_PORT=8765
-      - OPENCLAW_STT_MODEL=${OPENCLAW_STT_MODEL:-tiny}
-      - OPENCLAW_STT_DEVICE=cpu
-      - OPENCLAW_REQUIRE_AUTH=${OPENCLAW_REQUIRE_AUTH:-false}
-      - OPENCLAW_MASTER_KEY=${OPENCLAW_MASTER_KEY:-}
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - WHISPER__MODEL=Systran/faster-whisper-base
+      - KOKORO__ENABLED=true
+      - SERVE__API_KEY=${SPEACHES_API_KEY:-}
     volumes:
-      - whisper-models:/root/.cache/huggingface
-      - ./voices:/app/voices
+      - speaches-models:/root/.cache/huggingface
     profiles:
-      - cpu
+      - local-stt  # Only start with: docker compose --profile local-stt up
     restart: unless-stopped
 
 volumes:
-  whisper-models:
+  speaches-models:

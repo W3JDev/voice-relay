@@ -1,45 +1,48 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
-name = "openclaw-voice"
-version = "0.1.0"
-description = "Self-hosted browser-based voice interface for AI assistants"
+name = "voice-relay"
+version = "0.2.0"
+description = "Shared voice relay service — real-time STT/TTS hub for AI agents"
 readme = "README.md"
+license = "MIT"
 requires-python = ">=3.10,<3.14"
-license = {text = "MIT"}
 authors = [
-    {name = "Purple Horizons", email = "hello@purplehorizons.io"}
+    { name = "W3JDev", email = "dev@w3j.dev" },
 ]
-keywords = ["voice", "ai", "assistant", "whisper", "tts", "stt"]
 classifiers = [
     "Development Status :: 3 - Alpha",
-    "Intended Audience :: Developers",
+    "Framework :: FastAPI",
     "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
 ]
+
 dependencies = [
     "fastapi>=0.109.0",
     "uvicorn[standard]>=0.27.0",
     "websockets>=12.0",
     "pydantic>=2.5.0",
     "pydantic-settings>=2.1.0",
+    "python-multipart>=0.0.6",
     "numpy>=1.26.0",
+    "soundfile>=0.12.1",
     "openai>=1.6.0",
     "httpx>=0.26.0",
     "loguru>=0.7.2",
     "python-dotenv>=1.0.0",
+    "pyyaml>=6.0.1",
+    "edge-tts>=6.1.0",
 ]
 
 [project.optional-dependencies]
 stt = [
     "faster-whisper>=1.0.0",
-]
-tts = [
     "torch>=2.1.0",
-    "torchaudio>=2.1.0",
-]
-all = [
-    "openclaw-voice[stt,tts]",
+    "silero-vad>=4.0.0",
+    "webrtcvad>=2.0.10",
 ]
 dev = [
     "pytest>=7.4.0",
@@ -47,24 +50,15 @@ dev = [
     "black>=23.12.0",
     "ruff>=0.1.0",
 ]
-
-[project.urls]
-Homepage = "https://github.com/Purple-Horizons/openclaw-voice"
-Repository = "https://github.com/Purple-Horizons/openclaw-voice"
-Issues = "https://github.com/Purple-Horizons/openclaw-voice/issues"
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
-testpaths = ["tests"]
+all = ["voice-relay[stt,dev]"]
 
 [tool.ruff]
 line-length = 100
 target-version = "py310"
 
-[tool.black]
-line-length = 100
-target-version = ["py310", "py311", "py312"]
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

@@ -1,0 +1,29 @@
+# QA Pilot — Voice Relay Smoke Test Config
+# Usage: qa-pilot run qa/voice-relay-smoke.yaml
+#
+# Tests the Voice Relay web client UI for:
+# - Page loads and renders correctly
+# - Core UI elements present (mic button, transcript panel, settings)
+# - No console errors on load
+# - Connection status indicator works
+# - Responsive across viewports
+
+target_url: ${VOICE_RELAY_URL:-http://localhost:8765}
+
+viewports:
+  - { width: 1440, height: 900, name: desktop }
+  - { width: 390, height: 844, name: mobile }
+
+agents:
+  - vega_smoke
+  - iris_visual
+  - sage_aesthetic
+
+llm_model: gpt-4o-mini
+timeout_sec: 60
+
+report:
+  formats: [markdown, json]
+  destinations:
+    - { type: stdout }
+    - { type: file, path: ./qa-artifacts/voice-relay-smoke.md }

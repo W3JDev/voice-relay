@@ -1,62 +1,38 @@
-# OpenClaw Voice - GPU-enabled Docker image
-# Supports NVIDIA GPUs for fast Whisper + TTS inference
+FROM python:3.12-slim
 
-FROM nvidia/cuda:12.1-cudnn8-runtime-ubuntu22.04
+LABEL maintainer="OpenCLAW Voice Relay"
+LABEL description="Phase 1 Voice Relay - lightweight CPU-only relay mode"
 
-# Prevent interactive prompts
-ENV DEBIAN_FRONTEND=noninteractive
+# Prevent Python from writing .pyc files and enable unbuffered output
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
-# Install Python and dependencies
-RUN apt-get update && apt-get install -y \
-    python3.11 \
-    python3.11-venv \
-    python3-pip \
-    ffmpeg \
-    libsndfile1 \
-    git \
-    curl \
+# Install system dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        ffmpeg \
+        libsndfile1 \
+        curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Set Python 3.11 as default
-RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1 \
-    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
-
-# Create app directory
 WORKDIR /app
 
-# Install uv for fast package management
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-ENV PATH="/root/.cargo/bin:$PATH"
+# Install Python dependencies first (layer caching)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy requirements first for caching
-COPY requirements.txt pyproject.toml ./
+# Copy application source
+COPY src/ src/
 
-# Create venv and install dependencies
-RUN uv venv && \
-    . .venv/bin/activate && \
-    uv pip install -e ".[stt]" && \
-    uv pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
-
-# Copy application code
-COPY src/ ./src/
-COPY .env.example ./.env.example
-
-# Create directories for models (will be mounted or downloaded)
-RUN mkdir -p /app/models /app/voices
-
-# Environment variables
+# Relay-mode defaults (no GPU, API-first)
 ENV OPENCLAW_HOST=0.0.0.0
 ENV OPENCLAW_PORT=8765
-ENV OPENCLAW_STT_MODEL=large-v3-turbo
-ENV OPENCLAW_STT_DEVICE=cuda
-ENV OPENCLAW_REQUIRE_AUTH=true
+ENV OPENCLAW_STT_DEVICE=cpu
+ENV OPENCLAW_REQUIRE_AUTH=false
 
-# Expose port
 EXPOSE 8765
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8765/ || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:${PORT:-8765}/health || exit 1
 
-# Run server
-CMD [".venv/bin/python", "-m", "uvicorn", "src.server.main:app", "--host", "0.0.0.0", "--port", "8765"]
+CMD uvicorn src.server.main:app --host 0.0.0.0 --port ${PORT:-8765}

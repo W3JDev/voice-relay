@@ -5,692 +5,1588 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OpenClaw Voice</title>
     <style>
-        * {
+        /* ===== Reset & Base ===== */
+        *, *::before, *::after {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
+        :root {
+            --accent: #ff6b35;
+            --accent-dim: rgba(255, 107, 53, 0.15);
+            --accent-glow: rgba(255, 107, 53, 0.4);
+            --gold: #f7c94b;
+            --cyan: #4fc3f7;
+            --bg-primary: #1a1a2e;
+            --bg-secondary: #16213e;
+            --bg-surface: rgba(255, 255, 255, 0.04);
+            --bg-surface-hover: rgba(255, 255, 255, 0.07);
+            --text-primary: #e8e8e8;
+            --text-secondary: #999;
+            --text-muted: #666;
+            --text-dim: #555;
+            --border: rgba(255, 255, 255, 0.08);
+            --border-hover: rgba(255, 255, 255, 0.15);
+            --danger: #ff4444;
+            --success: #4caf50;
+            --warning: #ffb300;
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 16px;
+            --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            --font-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Consolas', monospace;
+            --transition-fast: 150ms ease;
+            --transition-normal: 250ms ease;
+        }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            color: #fff;
+            font-family: var(--font-sans);
+            background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+            color: var(--text-primary);
             min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ===== Layout Shell ===== */
+        .app-layout {
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            grid-template-columns: 1fr;
+            min-height: 100vh;
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 0 16px;
+        }
+
+        /* ===== Header ===== */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .header-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .header-brand h1 {
+            font-size: 1.35rem;
+            font-weight: 700;
+            background: linear-gradient(90deg, var(--accent), var(--gold));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .connection-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            padding: 4px 10px;
+            background: var(--bg-surface);
+            border-radius: 20px;
+        }
+
+        .connection-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-muted);
+            transition: background var(--transition-normal);
+        }
+
+        .connection-dot.connected { background: var(--success); }
+        .connection-dot.reconnecting {
+            background: var(--warning);
+            animation: blink 1s infinite;
+        }
+        .connection-dot.disconnected { background: var(--danger); }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .icon-btn {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            background: transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all var(--transition-fast);
+        }
+
+        .icon-btn:hover {
+            border-color: var(--border-hover);
+            color: var(--text-primary);
+            background: var(--bg-surface-hover);
+        }
+
+        /* ===== Settings Panel ===== */
+        .settings-panel {
+            display: none;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            margin-top: 12px;
+            animation: slideDown 200ms ease;
+        }
+
+        .settings-panel.open {
+            display: block;
+        }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .settings-panel h3 {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            margin-bottom: 14px;
+        }
+
+        .settings-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .settings-field {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .settings-field.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .settings-field label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .settings-field input,
+        .settings-field select {
+            padding: 8px 10px;
+            background: rgba(0, 0, 0, 0.25);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-primary);
+            font-size: 0.85rem;
+            font-family: var(--font-sans);
+            outline: none;
+            transition: border-color var(--transition-fast);
+        }
+
+        .settings-field input:focus,
+        .settings-field select:focus {
+            border-color: var(--accent);
+        }
+
+        .settings-field input::placeholder {
+            color: var(--text-dim);
+        }
+
+        .settings-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 14px;
+        }
+
+        .btn-sm {
+            padding: 6px 14px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text-secondary);
+        }
+
+        .btn-sm:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .btn-sm.primary {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+        }
+
+        .btn-sm.primary:hover {
+            background: #e55a2b;
+        }
+
+        /* ===== Main Content ===== */
+        .main-content {
+            display: grid;
+            grid-template-rows: auto 1fr;
+            gap: 16px;
+            padding: 16px 0;
+            overflow: hidden;
+        }
+
+        /* ===== Voice Control Area ===== */
+        .voice-area {
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            padding: 20px;
+            gap: 14px;
+            padding: 20px 0;
         }
-        
-        .container {
-            max-width: 600px;
+
+        /* Waveform Canvas */
+        .waveform-container {
             width: 100%;
-            text-align: center;
+            max-width: 400px;
+            height: 64px;
+            position: relative;
         }
-        
-        h1 {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
-            background: linear-gradient(90deg, #ff6b35, #f7c94b);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+
+        .waveform-canvas {
+            width: 100%;
+            height: 100%;
+            border-radius: var(--radius-md);
+            background: var(--bg-surface);
         }
-        
-        .subtitle {
-            color: #888;
-            margin-bottom: 40px;
-        }
-        
+
+        /* Voice Button */
         .voice-button {
-            width: 150px;
-            height: 150px;
+            width: 120px;
+            height: 120px;
             border-radius: 50%;
             border: none;
-            background: linear-gradient(135deg, #ff6b35 0%, #e55a2b 100%);
-            color: white;
-            font-size: 1.2rem;
+            background: linear-gradient(135deg, var(--accent) 0%, #e55a2b 100%);
+            color: #fff;
+            font-size: 1rem;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 10px 40px rgba(255, 107, 53, 0.3);
+            transition: all var(--transition-normal);
+            box-shadow: 0 8px 32px var(--accent-glow);
             display: flex;
             align-items: center;
             justify-content: center;
-            margin: 0 auto 30px;
+            position: relative;
+            flex-shrink: 0;
         }
-        
+
         .voice-button:hover {
-            transform: scale(1.05);
-            box-shadow: 0 15px 50px rgba(255, 107, 53, 0.4);
+            transform: scale(1.04);
+            box-shadow: 0 12px 44px var(--accent-glow);
         }
-        
-        .voice-button:active,
+
+        .voice-button:active {
+            transform: scale(0.96);
+        }
+
         .voice-button.listening {
-            transform: scale(0.95);
+            animation: pulse 1.5s ease-in-out infinite;
             background: linear-gradient(135deg, #e55a2b 0%, #c44a22 100%);
         }
-        
-        .voice-button.listening {
-            animation: pulse 1.5s infinite;
+
+        .voice-button.listening::after {
+            content: '';
+            position: absolute;
+            inset: -6px;
+            border-radius: 50%;
+            border: 2px solid var(--accent);
+            opacity: 0;
+            animation: ring-expand 1.5s ease-out infinite;
         }
-        
+
         @keyframes pulse {
-            0%, 100% { box-shadow: 0 10px 40px rgba(255, 107, 53, 0.3); }
-            50% { box-shadow: 0 10px 60px rgba(255, 107, 53, 0.6); }
+            0%, 100% { box-shadow: 0 8px 32px var(--accent-glow); }
+            50% { box-shadow: 0 8px 52px rgba(255, 107, 53, 0.55); }
         }
-        
+
+        @keyframes ring-expand {
+            0% { transform: scale(1); opacity: 0.5; }
+            100% { transform: scale(1.3); opacity: 0; }
+        }
+
+        /* VAD Indicator */
+        .vad-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--text-dim);
+            transition: background var(--transition-fast);
+            position: absolute;
+            top: 10px;
+            right: 10px;
+        }
+
+        .vad-dot.active {
+            background: var(--success);
+            box-shadow: 0 0 8px rgba(76, 175, 80, 0.6);
+        }
+
+        /* Controls Row */
+        .voice-controls {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
         .continuous-toggle {
             display: flex;
             align-items: center;
-            justify-content: center;
-            gap: 12px;
-            margin-bottom: 20px;
+            gap: 8px;
         }
-        
+
         .toggle-switch {
             position: relative;
-            width: 56px;
-            height: 30px;
+            width: 44px;
+            height: 24px;
+            flex-shrink: 0;
         }
-        
+
         .toggle-switch input {
             opacity: 0;
             width: 0;
             height: 0;
+            position: absolute;
         }
-        
+
         .toggle-slider {
             position: absolute;
             cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
+            inset: 0;
             background: #333;
-            border-radius: 30px;
-            transition: 0.3s;
+            border-radius: 24px;
+            transition: background var(--transition-normal);
         }
-        
-        .toggle-slider:before {
+
+        .toggle-slider::before {
+            content: '';
             position: absolute;
-            content: "";
-            height: 22px;
-            width: 22px;
-            left: 4px;
-            bottom: 4px;
-            background: white;
+            width: 18px;
+            height: 18px;
+            left: 3px;
+            bottom: 3px;
+            background: #fff;
             border-radius: 50%;
-            transition: 0.3s;
+            transition: transform var(--transition-normal);
         }
-        
+
         .toggle-switch input:checked + .toggle-slider {
-            background: #ff6b35;
+            background: var(--accent);
         }
-        
-        .toggle-switch input:checked + .toggle-slider:before {
-            transform: translateX(26px);
+
+        .toggle-switch input:checked + .toggle-slider::before {
+            transform: translateX(20px);
         }
-        
+
         .toggle-label {
-            font-weight: 600;
-            color: #fff;
-        }
-        
-        .toggle-hint {
-            color: #666;
             font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-secondary);
         }
-        
-        .status {
-            font-size: 1.1rem;
-            color: #888;
-            margin-bottom: 20px;
-            min-height: 30px;
+
+        .status-line {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            transition: color var(--transition-fast);
+            min-height: 1.3em;
         }
-        
-        .status.active {
-            color: #ff6b35;
+
+        .status-line.active {
+            color: var(--accent);
         }
-        
-        .transcript-box {
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 20px;
-            text-align: left;
-            min-height: 100px;
+
+        /* Barge-in Flash */
+        .barge-in-flash {
+            display: none;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.75rem;
+            color: var(--warning);
+            padding: 4px 10px;
+            background: rgba(255, 179, 0, 0.1);
+            border-radius: var(--radius-sm);
+            animation: fadeInOut 1.5s ease forwards;
         }
-        
-        .transcript-box h3 {
-            font-size: 0.9rem;
-            color: #666;
-            margin-bottom: 10px;
+
+        .barge-in-flash.visible {
+            display: inline-flex;
+        }
+
+        @keyframes fadeInOut {
+            0% { opacity: 0; }
+            15% { opacity: 1; }
+            70% { opacity: 1; }
+            100% { opacity: 0; display: none; }
+        }
+
+        /* ===== Transcript Panel ===== */
+        .transcript-panel {
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            min-height: 200px;
+        }
+
+        .transcript-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .transcript-header h3 {
+            font-size: 0.75rem;
             text-transform: uppercase;
-            letter-spacing: 0.1em;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            font-weight: 600;
         }
-        
-        .transcript-box p {
-            font-size: 1rem;
-            line-height: 1.6;
-            color: #ccc;
+
+        .transcript-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 400px;
+            scroll-behavior: smooth;
         }
-        
-        .transcript-box p.user {
-            color: #ff6b35;
+
+        /* Message Bubbles */
+        .msg {
+            max-width: 82%;
+            padding: 10px 14px;
+            border-radius: var(--radius-md);
+            font-size: 0.9rem;
+            line-height: 1.55;
+            word-wrap: break-word;
+            animation: msgIn 200ms ease;
         }
-        
-        .transcript-box p.assistant {
-            color: #4fc3f7;
+
+        @keyframes msgIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
         }
-        
-        /* Markdown styling */
-        .transcript-box code {
-            background: rgba(255, 255, 255, 0.1);
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-family: 'SF Mono', Monaco, monospace;
-            font-size: 0.9em;
+
+        .msg.user {
+            align-self: flex-end;
+            background: var(--accent-dim);
+            color: var(--text-primary);
+            border-bottom-right-radius: 4px;
         }
-        
-        .transcript-box code.block {
+
+        .msg.assistant {
+            align-self: flex-start;
+            background: rgba(79, 195, 247, 0.1);
+            color: var(--text-primary);
+            border-bottom-left-radius: 4px;
+        }
+
+        .msg.partial {
+            opacity: 0.6;
+            font-style: italic;
+        }
+
+        .msg .speaker {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 3px;
             display: block;
-            padding: 10px;
-            margin: 8px 0;
-            background: rgba(0, 0, 0, 0.3);
         }
-        
-        .transcript-box a {
-            color: #ff6b35;
+
+        .msg.user .speaker { color: var(--accent); }
+        .msg.assistant .speaker { color: var(--cyan); }
+
+        /* Markdown inside messages */
+        .msg code {
+            background: rgba(255, 255, 255, 0.08);
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-family: var(--font-mono);
+            font-size: 0.85em;
+        }
+
+        .msg code.block {
+            display: block;
+            padding: 8px 10px;
+            margin: 6px 0;
+            background: rgba(0, 0, 0, 0.3);
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+
+        .msg a {
+            color: var(--accent);
             text-decoration: none;
         }
-        
-        .transcript-box a:hover {
+
+        .msg a:hover {
             text-decoration: underline;
         }
-        
-        .controls {
+
+        .msg strong { font-weight: 600; }
+        .msg em { font-style: italic; }
+
+        /* ===== Footer ===== */
+        .footer {
             display: flex;
-            gap: 10px;
-            justify-content: center;
-            margin-top: 20px;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-top: 1px solid var(--border);
+            font-size: 0.75rem;
+            color: var(--text-dim);
         }
-        
-        .controls button {
-            padding: 10px 20px;
-            border: 1px solid #444;
+
+        .footer a {
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: color var(--transition-fast);
+        }
+
+        .footer a:hover {
+            color: var(--text-secondary);
+        }
+
+        .session-id {
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            color: var(--text-dim);
+            opacity: 0.7;
+        }
+
+        /* ===== Error Bar ===== */
+        .error-bar {
+            display: none;
+            padding: 8px 14px;
+            background: rgba(255, 68, 68, 0.12);
+            border: 1px solid rgba(255, 68, 68, 0.25);
+            border-radius: var(--radius-sm);
+            color: var(--danger);
+            font-size: 0.82rem;
+            margin-top: 8px;
+        }
+
+        .error-bar.visible {
+            display: block;
+        }
+
+        /* ===== Keyboard Hint ===== */
+        .keyboard-hint {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
+
+        .keyboard-hint kbd {
+            display: inline-block;
+            padding: 1px 6px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            font-family: var(--font-mono);
+            font-size: 0.8em;
+        }
+
+        /* ===== Responsive ===== */
+        @media (max-width: 640px) {
+            .app-layout {
+                padding: 0 10px;
+            }
+
+            .settings-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .header-brand h1 {
+                font-size: 1.1rem;
+            }
+
+            .voice-button {
+                width: 100px;
+                height: 100px;
+                font-size: 0.9rem;
+            }
+
+            .transcript-body {
+                max-height: 300px;
+            }
+
+            .msg {
+                max-width: 90%;
+            }
+        }
+
+        @media (max-width: 380px) {
+            .voice-button {
+                width: 88px;
+                height: 88px;
+                font-size: 0.8rem;
+            }
+
+            .waveform-container {
+                height: 48px;
+            }
+        }
+
+        /* ===== Scrollbar ===== */
+        .transcript-body::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        .transcript-body::-webkit-scrollbar-track {
             background: transparent;
-            color: #888;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 0.9rem;
-            transition: all 0.2s;
         }
-        
-        .controls button:hover {
-            border-color: #ff6b35;
-            color: #ff6b35;
-        }
-        
-        .error {
-            color: #ff4444;
-            margin-top: 20px;
-        }
-        
-        .instructions {
-            margin-top: 40px;
-            padding: 20px;
-            background: rgba(255, 255, 255, 0.03);
-            border-radius: 12px;
-            color: #666;
-            font-size: 0.9rem;
-        }
-        
-        .instructions code {
-            background: rgba(255, 107, 53, 0.1);
-            color: #ff6b35;
-            padding: 2px 6px;
+
+        .transcript-body::-webkit-scrollbar-thumb {
+            background: var(--border);
             border-radius: 4px;
+        }
+
+        .transcript-body::-webkit-scrollbar-thumb:hover {
+            background: var(--border-hover);
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🎙️ OpenClaw Voice</h1>
-        <p class="subtitle">Self-hosted voice AI interface</p>
-        
-        <button class="voice-button" id="voiceBtn">
-            Hold to Talk
-        </button>
-        
-        <div class="continuous-toggle">
-            <label class="toggle-switch">
-                <input type="checkbox" id="continuousMode">
-                <span class="toggle-slider"></span>
-            </label>
-            <span class="toggle-label">Continuous Mode</span>
-            <span class="toggle-hint">(hands-free, like Grok)</span>
+    <div class="app-layout">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-brand">
+                <h1>OpenClaw Voice</h1>
+                <div class="connection-badge" id="connBadge">
+                    <span class="connection-dot" id="connDot"></span>
+                    <span id="connLabel">Connecting</span>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button class="icon-btn" id="settingsToggle" title="Settings" aria-label="Settings">
+                    &#9881;
+                </button>
+                <button class="icon-btn" id="clearBtn" title="Clear conversation" aria-label="Clear conversation">
+                    &#128465;
+                </button>
+            </div>
+        </header>
+
+        <!-- Settings Panel (collapsed by default) -->
+        <div class="settings-panel" id="settingsPanel">
+            <h3>Connection Settings</h3>
+            <div class="settings-grid">
+                <div class="settings-field full-width">
+                    <label for="settingUrl">VSaaS URL</label>
+                    <input type="text" id="settingUrl" placeholder="wss://your-server.com/ws" />
+                </div>
+                <div class="settings-field">
+                    <label for="settingApiKey">API Key</label>
+                    <input type="password" id="settingApiKey" placeholder="sk-..." />
+                </div>
+                <div class="settings-field">
+                    <label for="settingBackend">Agent Backend</label>
+                    <select id="settingBackend">
+                        <option value="openai">OpenAI</option>
+                        <option value="anthropic">Anthropic</option>
+                        <option value="local">Local / Custom</option>
+                    </select>
+                </div>
+                <div class="settings-field">
+                    <label for="settingModel">Model</label>
+                    <input type="text" id="settingModel" placeholder="gpt-4o-mini" />
+                </div>
+                <div class="settings-field">
+                    <label for="settingVoice">Voice</label>
+                    <select id="settingVoice">
+                        <option value="alloy">Alloy</option>
+                        <option value="echo">Echo</option>
+                        <option value="fable">Fable</option>
+                        <option value="onyx">Onyx</option>
+                        <option value="nova">Nova</option>
+                        <option value="shimmer">Shimmer</option>
+                    </select>
+                </div>
+            </div>
+            <div class="settings-actions">
+                <button class="btn-sm" id="settingsCancel">Cancel</button>
+                <button class="btn-sm primary" id="settingsSave">Save &amp; Reconnect</button>
+            </div>
         </div>
-        
-        <p class="status" id="status">Ready</p>
-        
-        <div class="transcript-box">
-            <h3>Conversation</h3>
-            <div id="transcript"></div>
-        </div>
-        
-        <div class="controls">
-            <button id="clearBtn">Clear History</button>
-        </div>
-        
-        <p class="error" id="error"></p>
-        
-        <div class="instructions">
-            <p><strong>Push-to-talk:</strong> Hold the button and speak. Release to send.</p>
-            <p style="margin-top: 10px;"><strong>Continuous mode:</strong> Toggle ON for hands-free. Tap to start, it auto-listens after each response. Perfect for driving! 🚗</p>
-            <p style="margin-top: 10px;">Keyboard: <code>Space</code> to toggle recording.</p>
-        </div>
-        
-        <footer style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #333; font-size: 0.8rem; color: #555;">
-            <p>Built with 🦀 by <a href="https://purplehorizons.io" target="_blank" style="color: #888; text-decoration: none;">Purple Horizons</a></p>
-            <p style="margin-top: 5px;"><a href="https://github.com/Purple-Horizons/openclaw-voice" target="_blank" style="color: #666; text-decoration: none;">GitHub</a> · <a href="https://openclaw.ai" target="_blank" style="color: #666; text-decoration: none;">OpenClaw</a></p>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Voice Control Area -->
+            <section class="voice-area">
+                <div class="waveform-container">
+                    <canvas class="waveform-canvas" id="waveformCanvas"></canvas>
+                </div>
+
+                <button class="voice-button" id="voiceBtn">
+                    Hold to Talk
+                    <span class="vad-dot" id="vadDot"></span>
+                </button>
+
+                <div class="voice-controls">
+                    <div class="continuous-toggle">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="continuousMode" />
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="toggle-label">Continuous</span>
+                    </div>
+                    <span class="barge-in-flash" id="bargeInFlash">Interrupted</span>
+                </div>
+
+                <p class="status-line" id="statusLine">Ready</p>
+                <p class="keyboard-hint"><kbd>Space</kbd> toggle recording</p>
+            </section>
+
+            <!-- Transcript Panel -->
+            <section class="transcript-panel">
+                <div class="transcript-header">
+                    <h3>Conversation</h3>
+                </div>
+                <div class="transcript-body" id="transcriptBody"></div>
+            </section>
+
+            <div class="error-bar" id="errorBar"></div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div>
+                Built by <a href="https://purplehorizons.io" target="_blank" rel="noopener noreferrer">Purple Horizons</a>
+                &middot;
+                <a href="https://github.com/Purple-Horizons/openclaw-voice" target="_blank" rel="noopener noreferrer">GitHub</a>
+            </div>
+            <span class="session-id" id="sessionIdLabel"></span>
         </footer>
     </div>
 
     <script>
-        const voiceBtn = document.getElementById('voiceBtn');
-        const statusEl = document.getElementById('status');
-        const transcriptEl = document.getElementById('transcript');
-        const errorEl = document.getElementById('error');
-        const clearBtn = document.getElementById('clearBtn');
-        const continuousModeToggle = document.getElementById('continuousMode');
-        
-        let ws = null;
-        let mediaRecorder = null;
-        let audioContext = null;
-        let audioSource = null;
-        let audioProcessor = null;
-        let mediaStream = null;
-        let isRecording = false;
-        let continuousMode = false;
-        let silenceTimer = null;
-        let silenceThreshold = 1500; // ms of silence before stopping
-        
-        // Get API key from URL params or localStorage
-        function getApiKey() {
+    (function () {
+        'use strict';
+
+        /* ================================================================
+         *  DOM References
+         * ================================================================ */
+        const voiceBtn        = document.getElementById('voiceBtn');
+        const statusLine      = document.getElementById('statusLine');
+        const transcriptBody  = document.getElementById('transcriptBody');
+        const errorBar        = document.getElementById('errorBar');
+        const clearBtn        = document.getElementById('clearBtn');
+        const continuousToggle = document.getElementById('continuousMode');
+        const connDot         = document.getElementById('connDot');
+        const connLabel       = document.getElementById('connLabel');
+        const vadDot          = document.getElementById('vadDot');
+        const bargeInFlash    = document.getElementById('bargeInFlash');
+        const sessionIdLabel  = document.getElementById('sessionIdLabel');
+        const waveformCanvas  = document.getElementById('waveformCanvas');
+        const settingsToggle  = document.getElementById('settingsToggle');
+        const settingsPanel   = document.getElementById('settingsPanel');
+        const settingsCancel  = document.getElementById('settingsCancel');
+        const settingsSave    = document.getElementById('settingsSave');
+
+        /* Settings inputs */
+        const settingUrl      = document.getElementById('settingUrl');
+        const settingApiKey   = document.getElementById('settingApiKey');
+        const settingBackend  = document.getElementById('settingBackend');
+        const settingModel    = document.getElementById('settingModel');
+        const settingVoice    = document.getElementById('settingVoice');
+
+        /* ================================================================
+         *  State
+         * ================================================================ */
+        let ws                  = null;
+        let audioContext         = null;
+        let mediaStream          = null;
+        let workletNode          = null;
+        let sourceNode           = null;
+        let analyserNode         = null;
+        let isRecording          = false;
+        let continuousMode       = false;
+        let sessionId            = null;
+        let reconnectTimer       = null;
+        let reconnectDelay       = 1000;
+        const MAX_RECONNECT_DELAY = 16000;
+
+        /* Audio playback state */
+        let playbackCtx          = null;
+        let audioQueue           = [];
+        let isPlayingQueue       = false;
+        let currentPlaybackSource = null;
+        let currentGainNode      = null;
+
+        /* Transcript state */
+        let currentResponseEl    = null;
+        let streamingText        = '';
+        let partialTranscriptEl  = null;
+
+        /* Waveform */
+        let waveformAnimId       = null;
+        const waveCtx            = waveformCanvas.getContext('2d');
+        let waveformData         = new Float32Array(128);
+
+        /* ================================================================
+         *  Settings Persistence
+         * ================================================================ */
+        const SETTINGS_KEY = 'openclaw_settings';
+
+        function loadSettings() {
+            try {
+                const raw = localStorage.getItem(SETTINGS_KEY);
+                if (raw) {
+                    const s = JSON.parse(raw);
+                    if (s.url)     settingUrl.value     = s.url;
+                    if (s.apiKey)  settingApiKey.value   = s.apiKey;
+                    if (s.backend) settingBackend.value  = s.backend;
+                    if (s.model)   settingModel.value    = s.model;
+                    if (s.voice)   settingVoice.value    = s.voice;
+                }
+            } catch (_) { /* ignore */ }
+
+            /* Also check URL params for API key (upstream compat) */
             const urlParams = new URLSearchParams(window.location.search);
-            return urlParams.get('api_key') || localStorage.getItem('openclaw_api_key') || '';
+            const paramKey = urlParams.get('api_key');
+            if (paramKey && !settingApiKey.value) {
+                settingApiKey.value = paramKey;
+            }
         }
-        
-        // Connect to WebSocket
-        function connect() {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const apiKey = getApiKey();
-            // Support serving from subdirectory (e.g., /voice)
-            const basePath = window.location.pathname.replace(/\/$/, '');
-            const wsPath = basePath ? `${basePath}/ws` : '/ws';
-            const wsUrl = apiKey 
-                ? `${protocol}//${window.location.host}${wsPath}?api_key=${apiKey}`
-                : `${protocol}//${window.location.host}${wsPath}`;
-            
-            ws = new WebSocket(wsUrl);
-            
-            ws.onopen = () => {
-                setStatus('Connected');
-                errorEl.textContent = '';
+
+        function saveSettings() {
+            const s = {
+                url:     settingUrl.value.trim(),
+                apiKey:  settingApiKey.value.trim(),
+                backend: settingBackend.value,
+                model:   settingModel.value.trim(),
+                voice:   settingVoice.value,
             };
-            
-            ws.onclose = (event) => {
-                if (event.code === 4001) {
-                    setStatus('❌ API key required');
-                    errorEl.textContent = 'This server requires an API key. Add ?api_key=YOUR_KEY to the URL.';
-                } else if (event.code === 4002) {
-                    setStatus('❌ Invalid API key');
-                    errorEl.textContent = 'Your API key is invalid or expired.';
-                } else if (event.code === 4003) {
-                    setStatus('❌ Rate limited');
-                    errorEl.textContent = 'Too many requests. Please wait and try again.';
-                } else {
-                    setStatus('Disconnected - reconnecting...');
-                    setTimeout(connect, 2000);
+            localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+        }
+
+        function getApiKey() {
+            return settingApiKey.value.trim();
+        }
+
+        /* ================================================================
+         *  UI Helpers
+         * ================================================================ */
+        function setStatus(text, active) {
+            statusLine.textContent = text;
+            statusLine.classList.toggle('active', !!active);
+        }
+
+        function setConnection(state) {
+            connDot.className = 'connection-dot ' + state;
+            const labels = { connected: 'Connected', reconnecting: 'Reconnecting', disconnected: 'Disconnected' };
+            connLabel.textContent = labels[state] || state;
+        }
+
+        function showError(msg) {
+            errorBar.textContent = msg;
+            errorBar.classList.add('visible');
+        }
+
+        function clearError() {
+            errorBar.textContent = '';
+            errorBar.classList.remove('visible');
+        }
+
+        function flashBargeIn() {
+            bargeInFlash.classList.remove('visible');
+            /* Force reflow to restart animation */
+            void bargeInFlash.offsetWidth;
+            bargeInFlash.classList.add('visible');
+            setTimeout(function () {
+                bargeInFlash.classList.remove('visible');
+            }, 1600);
+        }
+
+        function escapeHtml(text) {
+            var div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function renderMarkdown(text) {
+            return text
+                /* Code blocks */
+                .replace(/```([\s\S]*?)```/g, function (_, code) {
+                    return '<code class="block">' + escapeHtml(code.trim()) + '</code>';
+                })
+                /* Inline code */
+                .replace(/`([^`]+)`/g, '<code>$1</code>')
+                /* Bold */
+                .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+                /* Italic */
+                .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+                /* Headers to bold */
+                .replace(/^#{1,3}\s+(.+)$/gm, '<strong>$1</strong>')
+                /* Links */
+                .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+                /* Newlines */
+                .replace(/\n/g, '<br>');
+        }
+
+        /* ================================================================
+         *  Transcript Management
+         * ================================================================ */
+        function addMessage(role, text, options) {
+            options = options || {};
+            var el = document.createElement('div');
+            el.className = 'msg ' + role;
+            if (options.partial) el.classList.add('partial');
+
+            var speakerLabel = role === 'user' ? 'You' : 'AI';
+            var rendered = role === 'assistant' ? renderMarkdown(text) : escapeHtml(text);
+            el.innerHTML = '<span class="speaker">' + speakerLabel + '</span>' + rendered;
+
+            transcriptBody.appendChild(el);
+            transcriptBody.scrollTop = transcriptBody.scrollHeight;
+            return el;
+        }
+
+        function updatePartialTranscript(text) {
+            if (!partialTranscriptEl) {
+                partialTranscriptEl = addMessage('user', text, { partial: true });
+            } else {
+                var rendered = escapeHtml(text);
+                partialTranscriptEl.innerHTML = '<span class="speaker">You</span>' + rendered;
+                transcriptBody.scrollTop = transcriptBody.scrollHeight;
+            }
+        }
+
+        function finalizePartialTranscript(text) {
+            if (partialTranscriptEl) {
+                partialTranscriptEl.classList.remove('partial');
+                var rendered = escapeHtml(text);
+                partialTranscriptEl.innerHTML = '<span class="speaker">You</span>' + rendered;
+                transcriptBody.scrollTop = transcriptBody.scrollHeight;
+                partialTranscriptEl = null;
+            } else {
+                addMessage('user', text);
+            }
+        }
+
+        function updateStreamingResponse(text) {
+            if (!currentResponseEl) {
+                currentResponseEl = addMessage('assistant', text);
+            } else {
+                currentResponseEl.innerHTML = '<span class="speaker">AI</span>' + renderMarkdown(text);
+                transcriptBody.scrollTop = transcriptBody.scrollHeight;
+            }
+        }
+
+        /* ================================================================
+         *  WebSocket Connection
+         * ================================================================ */
+        function buildWsUrl() {
+            var custom = settingUrl.value.trim();
+            if (custom) return custom;
+
+            var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            var basePath = window.location.pathname.replace(/\/$/, '');
+            var wsPath = basePath ? basePath + '/ws' : '/ws';
+            var apiKey = getApiKey();
+            var base = protocol + '//' + window.location.host + wsPath;
+            return apiKey ? base + '?api_key=' + encodeURIComponent(apiKey) : base;
+        }
+
+        function connect() {
+            if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+                ws.close();
+            }
+
+            var url = buildWsUrl();
+            setConnection('reconnecting');
+            clearError();
+
+            try {
+                ws = new WebSocket(url);
+            } catch (e) {
+                showError('Invalid WebSocket URL: ' + e.message);
+                setConnection('disconnected');
+                return;
+            }
+
+            ws.onopen = function () {
+                setConnection('connected');
+                clearError();
+                reconnectDelay = 1000;
+
+                /* If we have a previous session, attempt reconnect */
+                if (sessionId) {
+                    wsSend({ type: 'reconnect', session_id: sessionId });
                 }
             };
-            
-            ws.onerror = (e) => {
-                errorEl.textContent = 'WebSocket error. Is the server running?';
+
+            ws.onclose = function (event) {
+                setConnection('disconnected');
+                stopRecordingCleanup();
+
+                if (event.code === 4001) {
+                    setStatus('API key required');
+                    showError('This server requires an API key. Set it in Settings or add ?api_key=YOUR_KEY to the URL.');
+                    return;
+                }
+                if (event.code === 4002) {
+                    setStatus('Invalid API key');
+                    showError('Your API key is invalid or expired.');
+                    return;
+                }
+                if (event.code === 4003) {
+                    setStatus('Rate limited');
+                    showError('Too many requests. Please wait and try again.');
+                    return;
+                }
+
+                /* Exponential backoff reconnect */
+                setStatus('Disconnected - reconnecting in ' + Math.round(reconnectDelay / 1000) + 's');
+                clearTimeout(reconnectTimer);
+                reconnectTimer = setTimeout(connect, reconnectDelay);
+                reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY);
             };
-            
-            ws.onmessage = (event) => {
-                const msg = JSON.parse(event.data);
+
+            ws.onerror = function () {
+                showError('WebSocket error. Is the server running?');
+            };
+
+            ws.onmessage = function (event) {
+                var msg;
+                try {
+                    msg = JSON.parse(event.data);
+                } catch (_) {
+                    return;
+                }
                 handleMessage(msg);
             };
         }
-        
-        // Audio queue for streaming playback
-        let audioQueue = [];
-        let isPlayingQueue = false;
-        let currentResponseElement = null;
-        let streamingText = '';
-        
+
+        function wsSend(obj) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify(obj));
+            }
+        }
+
+        /* ================================================================
+         *  Message Handler
+         * ================================================================ */
         function handleMessage(msg) {
             switch (msg.type) {
-                case 'listening_started':
-                    setStatus(continuousMode ? '🎙️ Listening (continuous)...' : 'Listening...', true);
+                case 'session_start':
+                    sessionId = msg.session_id || null;
+                    if (sessionId) {
+                        sessionIdLabel.textContent = 'session: ' + sessionId.slice(0, 8);
+                        sessionIdLabel.title = sessionId;
+                    }
                     break;
+
+                case 'listening_started':
+                    setStatus(continuousMode ? 'Listening (continuous)...' : 'Listening...', true);
+                    break;
+
                 case 'listening_stopped':
                     setStatus('Processing...');
                     break;
+
                 case 'transcript':
-                    addTranscript('You', msg.text, 'user');
-                    setStatus('Getting response...');
-                    // Reset streaming state
-                    streamingText = '';
-                    currentResponseElement = null;
-                    audioQueue = [];
-                    break;
-                case 'response_text':
-                    // Legacy non-streaming response
-                    addTranscript('AI', msg.text, 'assistant');
-                    break;
-                case 'response_chunk':
-                    // Streaming text chunk
-                    streamingText += msg.text;
-                    updateStreamingTranscript(streamingText);
-                    setStatus('Speaking...', true);
-                    break;
-                case 'audio_chunk':
-                    // Queue audio chunk for playback
-                    queueAudioChunk(msg.data, msg.sample_rate);
-                    break;
-                case 'response_complete':
-                    // Finalize the response
-                    if (currentResponseElement) {
-                        currentResponseElement.innerHTML = `<strong>AI:</strong> ${renderMarkdown(msg.text)}`;
+                    if (msg.final === false) {
+                        /* Partial transcript - show dimmed/italic, updating in place */
+                        updatePartialTranscript(msg.text);
+                    } else {
+                        /* Final transcript */
+                        finalizePartialTranscript(msg.text);
+                        setStatus('Getting response...');
+                        /* Reset streaming state for upcoming response */
+                        streamingText = '';
+                        currentResponseEl = null;
+                        audioQueue = [];
                     }
                     break;
+
+                case 'response_text':
+                    /* Legacy non-streaming response */
+                    addMessage('assistant', msg.text);
+                    break;
+
+                case 'response_chunk':
+                    streamingText += msg.text;
+                    updateStreamingResponse(streamingText);
+                    setStatus('Speaking...', true);
+                    break;
+
+                case 'audio_chunk':
+                    queueAudioChunk(msg.data, msg.sample_rate);
+                    break;
+
+                case 'response_complete':
+                    if (currentResponseEl && msg.text) {
+                        currentResponseEl.innerHTML = '<span class="speaker">AI</span>' + renderMarkdown(msg.text);
+                    }
+                    break;
+
                 case 'audio_response':
-                    // Legacy non-streaming audio
-                    playAudioWithCallback(msg.data, msg.sample_rate, onAudioComplete);
+                    /* Legacy non-streaming audio */
+                    queueAudioChunk(msg.data, msg.sample_rate);
                     setStatus('Speaking...');
                     break;
+
+                case 'interrupted':
+                    handleBargeIn();
+                    break;
+
+                case 'vad_status':
+                    vadDot.classList.toggle('active', !!msg.speech_detected);
+                    break;
+
                 case 'pong':
+                    break;
+
+                default:
                     break;
             }
         }
-        
-        function updateStreamingTranscript(text) {
-            if (!currentResponseElement) {
-                currentResponseElement = document.createElement('p');
-                currentResponseElement.className = 'assistant';
-                transcriptEl.appendChild(currentResponseElement);
+
+        /* ================================================================
+         *  Barge-in Handling
+         * ================================================================ */
+        function handleBargeIn() {
+            /* Immediately stop all audio playback */
+            audioQueue = [];
+            isPlayingQueue = false;
+
+            if (currentPlaybackSource) {
+                try { currentPlaybackSource.stop(); } catch (_) {}
+                currentPlaybackSource = null;
             }
-            currentResponseElement.innerHTML = `<strong>AI:</strong> ${renderMarkdown(text)}`;
-            transcriptEl.scrollTop = transcriptEl.scrollHeight;
+            if (currentGainNode) {
+                try { currentGainNode.gain.setValueAtTime(0, playbackCtx.currentTime); } catch (_) {}
+                currentGainNode = null;
+            }
+
+            flashBargeIn();
+            setStatus(continuousMode ? 'Listening (continuous)...' : 'Listening...', true);
         }
-        
+
+        /* ================================================================
+         *  Audio Playback (queue-based with crossfade)
+         * ================================================================ */
+        function ensurePlaybackContext(sampleRate) {
+            if (!playbackCtx || playbackCtx.state === 'closed') {
+                playbackCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: sampleRate });
+            }
+            if (playbackCtx.state === 'suspended') {
+                playbackCtx.resume();
+            }
+            return playbackCtx;
+        }
+
         function queueAudioChunk(base64Data, sampleRate) {
-            audioQueue.push({ data: base64Data, sampleRate });
+            audioQueue.push({ data: base64Data, sampleRate: sampleRate || 24000 });
             if (!isPlayingQueue) {
                 playNextInQueue();
             }
         }
-        
-        async function playNextInQueue() {
+
+        function playNextInQueue() {
             if (audioQueue.length === 0) {
                 isPlayingQueue = false;
-                onAudioComplete();
+                currentPlaybackSource = null;
+                currentGainNode = null;
+                onPlaybackComplete();
                 return;
             }
-            
+
             isPlayingQueue = true;
-            const { data, sampleRate } = audioQueue.shift();
-            
+            var chunk = audioQueue.shift();
+
             try {
-                // Decode base64 to PCM
-                const binaryString = atob(data);
-                const bytes = new Uint8Array(binaryString.length);
-                for (let i = 0; i < binaryString.length; i++) {
+                /* Decode base64 to raw bytes */
+                var binaryString = atob(chunk.data);
+                var bytes = new Uint8Array(binaryString.length);
+                for (var i = 0; i < binaryString.length; i++) {
                     bytes[i] = binaryString.charCodeAt(i);
                 }
-                
-                // Convert to Int16 then Float32
-                const int16 = new Int16Array(bytes.buffer);
-                const float32 = new Float32Array(int16.length);
-                for (let i = 0; i < int16.length; i++) {
-                    float32[i] = int16[i] / 32768.0;
+
+                /* Convert Int16 PCM to Float32 */
+                var int16 = new Int16Array(bytes.buffer);
+                var float32 = new Float32Array(int16.length);
+                for (var j = 0; j < int16.length; j++) {
+                    float32[j] = int16[j] / 32768.0;
                 }
-                
-                // Create audio buffer and play
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate });
-                const buffer = audioCtx.createBuffer(1, float32.length, sampleRate);
+
+                var ctx = ensurePlaybackContext(chunk.sampleRate);
+                var buffer = ctx.createBuffer(1, float32.length, chunk.sampleRate);
                 buffer.copyToChannel(float32, 0);
-                
-                const source = audioCtx.createBufferSource();
+
+                /* Gain node for crossfade / barge-in muting */
+                var gainNode = ctx.createGain();
+                gainNode.gain.setValueAtTime(0, ctx.currentTime);
+                /* Fade in over 15ms */
+                gainNode.gain.linearRampToValueAtTime(1.0, ctx.currentTime + 0.015);
+                /* Fade out last 15ms */
+                var duration = buffer.duration;
+                if (duration > 0.03) {
+                    gainNode.gain.setValueAtTime(1.0, ctx.currentTime + duration - 0.015);
+                    gainNode.gain.linearRampToValueAtTime(0.0, ctx.currentTime + duration);
+                }
+
+                gainNode.connect(ctx.destination);
+
+                var source = ctx.createBufferSource();
                 source.buffer = buffer;
-                source.connect(audioCtx.destination);
-                source.onended = () => {
-                    audioCtx.close();
+                source.connect(gainNode);
+
+                currentPlaybackSource = source;
+                currentGainNode = gainNode;
+
+                source.onended = function () {
+                    if (currentPlaybackSource === source) {
+                        currentPlaybackSource = null;
+                        currentGainNode = null;
+                    }
                     playNextInQueue();
                 };
+
                 source.start(0);
             } catch (e) {
                 console.error('Audio playback error:', e);
                 playNextInQueue();
             }
         }
-        
-        function onAudioComplete() {
+
+        function onPlaybackComplete() {
             if (continuousMode) {
-                setStatus('🎙️ Ready to listen...', true);
-                setTimeout(() => {
-                    if (continuousMode) startRecording();
+                setStatus('Ready to listen...', true);
+                setTimeout(function () {
+                    if (continuousMode && !isRecording) {
+                        startRecording();
+                    }
                 }, 300);
             } else {
                 setStatus('Ready');
             }
         }
-        
-        function setStatus(text, active = false) {
-            statusEl.textContent = text;
-            statusEl.className = active ? 'status active' : 'status';
+
+        /* ================================================================
+         *  AudioWorklet-based Recording
+         * ================================================================ */
+        async function initAudioWorklet() {
+            if (!audioContext || audioContext.state === 'closed') {
+                audioContext = new AudioContext({ sampleRate: 16000 });
+            }
+            if (audioContext.state === 'suspended') {
+                await audioContext.resume();
+            }
+
+            /* Register the worklet processor inline via Blob URL */
+            var workletCode = [
+                'class AudioCapture extends AudioWorkletProcessor {',
+                '  process(inputs) {',
+                '    const input = inputs[0][0];',
+                '    if (input) this.port.postMessage(input.slice());',
+                '    return true;',
+                '  }',
+                '}',
+                "registerProcessor('audio-capture', AudioCapture);"
+            ].join('\n');
+
+            var blob = new Blob([workletCode], { type: 'application/javascript' });
+            var url = URL.createObjectURL(blob);
+
+            try {
+                await audioContext.audioWorklet.addModule(url);
+            } catch (e) {
+                /* Module may already be registered if we reconnected */
+                if (!e.message.includes('already been')) {
+                    throw e;
+                }
+            } finally {
+                URL.revokeObjectURL(url);
+            }
         }
-        
-        function addTranscript(speaker, text, className) {
-            const p = document.createElement('p');
-            p.className = className;
-            // Render markdown for assistant responses
-            const renderedText = className === 'assistant' ? renderMarkdown(text) : escapeHtml(text);
-            p.innerHTML = `<strong>${speaker}:</strong> ${renderedText}`;
-            transcriptEl.appendChild(p);
-            transcriptEl.scrollTop = transcriptEl.scrollHeight;
-        }
-        
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-        
-        function renderMarkdown(text) {
-            // Simple markdown renderer
-            return text
-                // Code blocks
-                .replace(/```[\s\S]*?```/g, '<code class="block">code</code>')
-                // Inline code
-                .replace(/`([^`]+)`/g, '<code>$1</code>')
-                // Bold
-                .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-                // Italic
-                .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-                // Headers (convert to bold)
-                .replace(/^#{1,3}\s+(.+)$/gm, '<strong>$1</strong>')
-                // Links
-                .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>')
-                // Line breaks
-                .replace(/\n/g, '<br>');
-        }
-        
-        // Audio recording
+
         async function startRecording() {
             if (isRecording) return;
-            
+
             try {
-                // Reuse stream if available, otherwise get new one
-                if (!mediaStream) {
-                    mediaStream = await navigator.mediaDevices.getUserMedia({ 
+                /* Acquire microphone stream (reuse if available) */
+                if (!mediaStream || mediaStream.getTracks().every(function (t) { return t.readyState === 'ended'; })) {
+                    mediaStream = await navigator.mediaDevices.getUserMedia({
                         audio: {
                             sampleRate: 16000,
                             channelCount: 1,
                             echoCancellation: true,
-                            noiseSuppression: true,
+                            noiseSuppression: true
                         }
                     });
                 }
-                
-                audioContext = new AudioContext({ sampleRate: 16000 });
-                audioSource = audioContext.createMediaStreamSource(mediaStream);
-                audioProcessor = audioContext.createScriptProcessor(4096, 1, 1);
-                
-                let lastSoundTime = Date.now();
-                
-                audioProcessor.onaudioprocess = (e) => {
-                    if (isRecording && ws && ws.readyState === WebSocket.OPEN) {
-                        const audioData = e.inputBuffer.getChannelData(0);
-                        const base64 = float32ToBase64(audioData);
-                        ws.send(JSON.stringify({ type: 'audio', data: base64 }));
-                        
-                        // Simple VAD: check if audio has energy
-                        if (continuousMode) {
-                            const energy = audioData.reduce((sum, val) => sum + Math.abs(val), 0) / audioData.length;
-                            if (energy > 0.01) {
-                                lastSoundTime = Date.now();
-                            } else if (Date.now() - lastSoundTime > silenceThreshold) {
-                                // Silence detected - stop recording
-                                stopRecording();
-                            }
-                        }
+
+                await initAudioWorklet();
+
+                sourceNode = audioContext.createMediaStreamSource(mediaStream);
+
+                /* Analyser for waveform visualization */
+                analyserNode = audioContext.createAnalyser();
+                analyserNode.fftSize = 256;
+                analyserNode.smoothingTimeConstant = 0.7;
+                sourceNode.connect(analyserNode);
+
+                /* AudioWorkletNode for capturing PCM */
+                workletNode = new AudioWorkletNode(audioContext, 'audio-capture');
+                workletNode.port.onmessage = function (e) {
+                    if (!isRecording) return;
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        var pcmFloat32 = e.data;
+                        var base64 = float32ToBase64(pcmFloat32);
+                        wsSend({ type: 'audio', data: base64 });
+
+                        /* Update waveform data for visualization */
+                        waveformData = pcmFloat32;
                     }
                 };
-                
-                audioSource.connect(audioProcessor);
-                audioProcessor.connect(audioContext.destination);
-                
+
+                sourceNode.connect(workletNode);
+                /* Worklet needs to be connected to destination (or a silent node) to process */
+                workletNode.connect(audioContext.destination);
+
                 isRecording = true;
                 voiceBtn.classList.add('listening');
-                voiceBtn.textContent = continuousMode ? '🎙️ Listening...' : 'Listening...';
-                
-                ws.send(JSON.stringify({ type: 'start_listening' }));
-                
+                voiceBtn.childNodes[0].textContent = continuousMode ? 'Listening...' : 'Listening...';
+
+                wsSend({ type: 'start_listening' });
+
+                startWaveformAnimation();
+
             } catch (err) {
-                errorEl.textContent = `Microphone error: ${err.message}`;
+                showError('Microphone error: ' + err.message);
+                console.error('Recording start error:', err);
             }
         }
-        
+
         function stopRecording() {
             if (!isRecording) return;
-            
+            stopRecordingCleanup();
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                wsSend({ type: 'stop_listening' });
+            }
+        }
+
+        function stopRecordingCleanup() {
             isRecording = false;
             voiceBtn.classList.remove('listening');
-            voiceBtn.textContent = continuousMode ? 'Tap to Talk' : 'Hold to Talk';
-            
-            // Disconnect processor but keep stream for continuous mode
-            if (audioProcessor) {
-                audioProcessor.disconnect();
-                audioProcessor = null;
+            voiceBtn.childNodes[0].textContent = continuousMode ? 'Tap to Talk' : 'Hold to Talk';
+            vadDot.classList.remove('active');
+
+            stopWaveformAnimation();
+
+            if (workletNode) {
+                try { workletNode.disconnect(); } catch (_) {}
+                workletNode = null;
             }
-            if (audioSource) {
-                audioSource.disconnect();
-                audioSource = null;
+            if (sourceNode) {
+                try { sourceNode.disconnect(); } catch (_) {}
+                sourceNode = null;
             }
-            if (audioContext) {
-                audioContext.close();
+            if (analyserNode) {
+                try { analyserNode.disconnect(); } catch (_) {}
+                analyserNode = null;
+            }
+            if (audioContext && audioContext.state !== 'closed') {
+                audioContext.close().catch(function () {});
                 audioContext = null;
             }
-            
-            // Only release stream if not in continuous mode
+
+            /* Release mic unless continuous mode */
             if (!continuousMode && mediaStream) {
-                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream.getTracks().forEach(function (track) { track.stop(); });
                 mediaStream = null;
             }
-            
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'stop_listening' }));
-            }
         }
-        
-        // Audio playback
-        function playAudio(base64Data, sampleRate) {
-            playAudioWithCallback(base64Data, sampleRate, null);
-        }
-        
-        function playAudioWithCallback(base64Data, sampleRate, callback) {
-            const audioCtx = new AudioContext({ sampleRate: sampleRate });
-            const audioData = base64ToFloat32(base64Data);
-            const buffer = audioCtx.createBuffer(1, audioData.length, sampleRate);
-            buffer.getChannelData(0).set(audioData);
-            
-            const source = audioCtx.createBufferSource();
-            source.buffer = buffer;
-            source.connect(audioCtx.destination);
-            
-            if (callback) {
-                source.onended = callback;
-            }
-            
-            source.start();
-        }
-        
-        // Utilities
+
+        /* ================================================================
+         *  Audio Encoding Utilities
+         * ================================================================ */
         function float32ToBase64(float32Array) {
-            const bytes = new Uint8Array(float32Array.buffer);
-            let binary = '';
-            for (let i = 0; i < bytes.length; i++) {
+            var bytes = new Uint8Array(float32Array.buffer, float32Array.byteOffset, float32Array.byteLength);
+            var binary = '';
+            for (var i = 0; i < bytes.length; i++) {
                 binary += String.fromCharCode(bytes[i]);
             }
             return btoa(binary);
         }
-        
-        function base64ToFloat32(base64) {
-            const binary = atob(base64);
-            const bytes = new Uint8Array(binary.length);
-            for (let i = 0; i < binary.length; i++) {
-                bytes[i] = binary.charCodeAt(i);
-            }
-            return new Float32Array(bytes.buffer);
+
+        /* ================================================================
+         *  Waveform Visualization
+         * ================================================================ */
+        function resizeCanvas() {
+            var rect = waveformCanvas.getBoundingClientRect();
+            var dpr = window.devicePixelRatio || 1;
+            waveformCanvas.width = rect.width * dpr;
+            waveformCanvas.height = rect.height * dpr;
+            waveCtx.scale(dpr, dpr);
         }
-        
-        // Event listeners
-        voiceBtn.addEventListener('mousedown', () => {
-            if (!continuousMode) startRecording();
+
+        function startWaveformAnimation() {
+            resizeCanvas();
+            drawWaveframe();
+        }
+
+        function stopWaveformAnimation() {
+            if (waveformAnimId) {
+                cancelAnimationFrame(waveformAnimId);
+                waveformAnimId = null;
+            }
+            /* Clear to idle state */
+            drawIdleWaveform();
+        }
+
+        function drawWaveframe() {
+            if (!isRecording) return;
+
+            var rect = waveformCanvas.getBoundingClientRect();
+            var w = rect.width;
+            var h = rect.height;
+
+            waveCtx.clearRect(0, 0, w, h);
+
+            var bars = 48;
+            var gap = 2;
+            var barWidth = (w - gap * (bars - 1)) / bars;
+            if (barWidth < 2) barWidth = 2;
+            var step = Math.max(1, Math.floor(waveformData.length / bars));
+
+            for (var i = 0; i < bars; i++) {
+                /* Sample from waveform data */
+                var idx = Math.min(i * step, waveformData.length - 1);
+                var amplitude = Math.abs(waveformData[idx] || 0);
+                /* Scale amplitude with some exaggeration for visual effect */
+                var scaled = Math.min(amplitude * 4, 1.0);
+                var barHeight = Math.max(2, scaled * (h - 8));
+
+                var x = i * (barWidth + gap);
+                var y = (h - barHeight) / 2;
+
+                /* Gradient color based on amplitude */
+                var r = 255;
+                var g = Math.round(107 + (194 - 107) * (1 - scaled));
+                var b = Math.round(53 + (247 - 53) * (1 - scaled));
+                var alpha = 0.4 + scaled * 0.6;
+
+                waveCtx.fillStyle = 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+                waveCtx.beginPath();
+                waveCtx.roundRect(x, y, barWidth, barHeight, 2);
+                waveCtx.fill();
+            }
+
+            waveformAnimId = requestAnimationFrame(drawWaveframe);
+        }
+
+        function drawIdleWaveform() {
+            var rect = waveformCanvas.getBoundingClientRect();
+            var w = rect.width;
+            var h = rect.height;
+
+            waveCtx.clearRect(0, 0, w, h);
+
+            var bars = 48;
+            var gap = 2;
+            var barWidth = (w - gap * (bars - 1)) / bars;
+            if (barWidth < 2) barWidth = 2;
+
+            for (var i = 0; i < bars; i++) {
+                var x = i * (barWidth + gap);
+                var barHeight = 2;
+                var y = (h - barHeight) / 2;
+                waveCtx.fillStyle = 'rgba(255, 107, 53, 0.15)';
+                waveCtx.beginPath();
+                waveCtx.roundRect(x, y, barWidth, barHeight, 1);
+                waveCtx.fill();
+            }
+        }
+
+        /* ================================================================
+         *  Event Listeners: Voice Button
+         * ================================================================ */
+        var pttDown = false;
+
+        voiceBtn.addEventListener('mousedown', function (e) {
+            if (continuousMode) return;
+            pttDown = true;
+            startRecording();
         });
-        voiceBtn.addEventListener('mouseup', () => {
-            if (!continuousMode) stopRecording();
+
+        voiceBtn.addEventListener('mouseup', function () {
+            if (continuousMode) return;
+            if (pttDown) { pttDown = false; stopRecording(); }
         });
-        voiceBtn.addEventListener('mouseleave', () => {
-            if (!continuousMode) stopRecording();
+
+        voiceBtn.addEventListener('mouseleave', function () {
+            if (continuousMode) return;
+            if (pttDown) { pttDown = false; stopRecording(); }
         });
-        voiceBtn.addEventListener('touchstart', (e) => { 
-            e.preventDefault(); 
-            if (!continuousMode) startRecording();
+
+        voiceBtn.addEventListener('touchstart', function (e) {
+            e.preventDefault();
+            if (continuousMode) return;
+            pttDown = true;
+            startRecording();
+        }, { passive: false });
+
+        voiceBtn.addEventListener('touchend', function (e) {
+            e.preventDefault();
+            if (continuousMode) return;
+            if (pttDown) { pttDown = false; stopRecording(); }
         });
-        voiceBtn.addEventListener('touchend', () => {
-            if (!continuousMode) stopRecording();
-        });
-        
-        // Tap for continuous mode
-        voiceBtn.addEventListener('click', () => {
-            if (continuousMode) {
-                if (isRecording) {
-                    stopRecording();
-                } else {
-                    startRecording();
-                }
+
+        voiceBtn.addEventListener('click', function () {
+            if (!continuousMode) return;
+            if (isRecording) {
+                stopRecording();
+            } else {
+                startRecording();
             }
         });
-        
-        // Spacebar to toggle
-        document.addEventListener('keydown', (e) => {
+
+        /* Spacebar toggle */
+        document.addEventListener('keydown', function (e) {
             if (e.code === 'Space' && !e.repeat) {
+                /* Don't capture if user is typing in an input */
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
                 e.preventDefault();
                 if (isRecording) {
                     stopRecording();
@@ -699,41 +1595,87 @@
                 }
             }
         });
-        
-        clearBtn.addEventListener('click', () => {
-            transcriptEl.innerHTML = '';
-        });
-        
-        // Continuous mode toggle
-        continuousModeToggle.addEventListener('change', (e) => {
+
+        /* ================================================================
+         *  Event Listeners: Continuous Mode
+         * ================================================================ */
+        continuousToggle.addEventListener('change', function (e) {
             continuousMode = e.target.checked;
-            voiceBtn.textContent = continuousMode ? 'Tap to Talk' : 'Hold to Talk';
-            
+            voiceBtn.childNodes[0].textContent = continuousMode ? 'Tap to Talk' : 'Hold to Talk';
+
             if (continuousMode) {
-                setStatus('🎙️ Continuous mode ON — tap to start', true);
-                // Pre-request mic permission
+                setStatus('Continuous mode ON - tap to start', true);
+                /* Pre-request microphone permission */
                 navigator.mediaDevices.getUserMedia({ audio: true })
-                    .then(stream => { mediaStream = stream; })
-                    .catch(err => { errorEl.textContent = `Mic access needed: ${err.message}`; });
+                    .then(function (stream) { mediaStream = stream; })
+                    .catch(function (err) { showError('Mic access needed: ' + err.message); });
             } else {
                 setStatus('Ready');
-                // Release mic
-                if (mediaStream && !isRecording) {
-                    mediaStream.getTracks().forEach(track => track.stop());
+                if (isRecording) stopRecording();
+                if (mediaStream) {
+                    mediaStream.getTracks().forEach(function (track) { track.stop(); });
                     mediaStream = null;
                 }
             }
         });
-        
-        // Connect on load
-        connect();
-        
-        // Keep connection alive
-        setInterval(() => {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'ping' }));
-            }
+
+        /* ================================================================
+         *  Event Listeners: UI Controls
+         * ================================================================ */
+        clearBtn.addEventListener('click', function () {
+            transcriptBody.innerHTML = '';
+            partialTranscriptEl = null;
+            currentResponseEl = null;
+            streamingText = '';
+        });
+
+        settingsToggle.addEventListener('click', function () {
+            settingsPanel.classList.toggle('open');
+        });
+
+        settingsCancel.addEventListener('click', function () {
+            settingsPanel.classList.remove('open');
+            loadSettings(); /* Revert unsaved changes */
+        });
+
+        settingsSave.addEventListener('click', function () {
+            saveSettings();
+            settingsPanel.classList.remove('open');
+            /* Reconnect with new settings */
+            sessionId = null;
+            sessionIdLabel.textContent = '';
+            if (isRecording) stopRecording();
+            connect();
+        });
+
+        /* ================================================================
+         *  Window Resize Handler for Canvas
+         * ================================================================ */
+        var resizeTimeout = null;
+        window.addEventListener('resize', function () {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(function () {
+                resizeCanvas();
+                if (!isRecording) drawIdleWaveform();
+            }, 100);
+        });
+
+        /* ================================================================
+         *  Keep-Alive Ping
+         * ================================================================ */
+        setInterval(function () {
+            wsSend({ type: 'ping' });
         }, 30000);
+
+        /* ================================================================
+         *  Initialization
+         * ================================================================ */
+        loadSettings();
+        resizeCanvas();
+        drawIdleWaveform();
+        connect();
+
+    })();
     </script>
 </body>
 </html>
