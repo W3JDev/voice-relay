@@ -1,1 +1,1 @@
-# OpenClaw Voice Server
+"""Voice Relay Server"""
