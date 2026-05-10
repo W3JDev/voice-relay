@@ -45,6 +45,9 @@ class RelayTTS:
         """
         self._voice = voice or os.environ.get("KOKORO_VOICE", "af_heart")
         self._edge_voice = edge_voice or os.environ.get("EDGE_TTS_VOICE", "en-US-AriaNeural")
+        self._kokoro_model = os.environ.get(
+            "KOKORO_MODEL", "speaches-ai/Kokoro-82M-v1.0-ONNX"
+        )
 
         self._backend: str = "mock"
         self._vsaas_client = None  # openai.OpenAI (sync, used in threads)
@@ -152,7 +155,7 @@ class RelayTTS:
     def _kokoro_request(self, text: str):
         """Blocking call -- meant to be run via ``run_in_executor``."""
         response = self._vsaas_client.audio.speech.create(
-            model="kokoro",
+            model=self._kokoro_model,
             voice=self._voice,
             input=text,
             response_format="pcm",
