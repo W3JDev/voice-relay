@@ -1215,7 +1215,10 @@
         }
 
         function queueAudioChunk(base64Data, sampleRate) {
-            audioQueue.push({ data: base64Data, sampleRate: sampleRate || 24000 });
+            var sr = sampleRate || 24000;
+            console.debug('[audio] queued chunk, queue length:', audioQueue.length + 1,
+                          'sampleRate:', sr, 'b64 length:', base64Data.length);
+            audioQueue.push({ data: base64Data, sampleRate: sr });
             if (!isPlayingQueue) {
                 playNextInQueue();
             }
@@ -1282,6 +1285,9 @@
                 };
 
                 source.start(0);
+                console.debug('[audio] playing chunk:', float32.length, 'samples,',
+                              (float32.length / chunk.sampleRate).toFixed(2) + 's',
+                              'ctx state:', ctx.state);
             } catch (e) {
                 console.error('Audio playback error:', e);
                 playNextInQueue();
@@ -1343,6 +1349,13 @@
             if (isRecording) return;
 
             try {
+                /* Pre-create the playback AudioContext on this user gesture.
+                   Chrome's autoplay policy requires AudioContext creation or
+                   resume to happen inside a user-initiated event.  Without
+                   this, audio chunks arriving later via WebSocket would be
+                   silently dropped because the context stays suspended. */
+                ensurePlaybackContext(24000);
+
                 /* Acquire microphone stream (reuse if available) */
                 if (!mediaStream || mediaStream.getTracks().every(function (t) { return t.readyState === 'ended'; })) {
                     mediaStream = await navigator.mediaDevices.getUserMedia({
