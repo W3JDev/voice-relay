@@ -44,9 +44,8 @@ ENV OPENCLAW_PORT=8765
 ENV OPENCLAW_STT_DEVICE=cpu
 ENV OPENCLAW_REQUIRE_AUTH=false
 
-# SQLite persistence
+# SQLite persistence (volume mount at /data provided by Railway via railway.toml)
 ENV OPENCLAW_DB_PATH=/data/voice_relay.db
-VOLUME ["/data"]
 
 EXPOSE 8765
 
