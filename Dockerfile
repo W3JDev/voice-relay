@@ -29,6 +29,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Remove build tools to shrink image (runtime doesn't need gcc)
 RUN apt-get purge -y --auto-remove build-essential && rm -rf /var/lib/apt/lists/*
 
+# Bust Docker layer cache for source files on every commit
+ARG CACHEBUST=1
+
 # Copy application source
 COPY src/ src/
 
@@ -42,7 +45,6 @@ RUN cd widget && npm install && npm run build && \
 ENV OPENCLAW_HOST=0.0.0.0
 ENV OPENCLAW_PORT=8765
 ENV OPENCLAW_STT_DEVICE=cpu
-ENV OPENCLAW_REQUIRE_AUTH=false
 
 # SQLite persistence (volume mount at /data provided by Railway via railway.toml)
 ENV OPENCLAW_DB_PATH=/data/voice_relay.db
@@ -50,6 +52,6 @@ ENV OPENCLAW_DB_PATH=/data/voice_relay.db
 EXPOSE 8765
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:${OPENCLAW_PORT:-8765}/health || exit 1
+    CMD ["sh", "-c", "curl -f http://localhost:${OPENCLAW_PORT:-8765}/health || exit 1"]
 
-CMD uvicorn src.server.main:app --host 0.0.0.0 --port ${OPENCLAW_PORT:-8765}
+CMD ["sh", "-c", "uvicorn src.server.main:app --host 0.0.0.0 --port ${OPENCLAW_PORT:-8765}"]
