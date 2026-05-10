@@ -55,7 +55,7 @@ export function useAudioRecorder(
     const buf = new Float32Array(analyser.frequencyBinCount);
 
     function tick() {
-      if (!recordingRef.current) return;
+      if (!recordingRef.current || !analyser) return;
       analyser.getFloatTimeDomainData(buf);
       setWaveformData(buf.slice());
       animFrameRef.current = requestAnimationFrame(tick);

@@ -77,7 +77,8 @@ export function useAudioPlayback(): UseAudioPlaybackReturn {
 
       const ctx = ensureContext(chunk.sampleRate);
       const buffer = ctx.createBuffer(1, float32.length, chunk.sampleRate);
-      buffer.copyToChannel(float32, 0);
+      // TS 5.6+ made Float32Array generic; copyToChannel expects Float32Array<ArrayBuffer>
+      buffer.copyToChannel(float32 as unknown as Float32Array<ArrayBuffer>, 0);
 
       // Gain node for crossfade / barge-in muting
       const gainNode = ctx.createGain();
