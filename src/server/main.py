@@ -477,7 +477,12 @@ async def _session_loop(session: SessionState) -> None:
 
     while True:
         data = await ws.receive_text()
-        msg = json.loads(data)
+        try:
+            msg = json.loads(data)
+        except json.JSONDecodeError:
+            logger.warning(f"Session {session.session_id}: invalid JSON received")
+            await ws.send_json({"type": "error", "message": "Invalid JSON"})
+            continue
         msg_type = msg.get("type", "")
         session.touch()
 
@@ -858,17 +863,23 @@ async def _handle_reconnect(
     if old_backend is not None:
         object.__setattr__(session, "_backend_instance", old_backend)
 
-    # Remove the old session
+    # Re-key: remove old session, re-register current session under the old ID
+    # so the client keeps using its original session_id.
+    new_id = session.session_id
     del sessions[old_id]
+    session.session_id = old_id
+    sessions[old_id] = session
+    if new_id in sessions and new_id != old_id:
+        del sessions[new_id]
 
     await ws.send_json({
         "type": "session_start",
-        "session_id": session.session_id,
+        "session_id": old_id,
         "resumed": True,
         "history_length": len(session.conversation_history),
     })
     logger.info(
-        f"Session {old_id} reconnected as {session.session_id} "
+        f"Session {new_id} reconnected as {old_id} "
         f"({len(session.conversation_history)} history entries)"
     )
 

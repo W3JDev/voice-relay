@@ -124,10 +124,17 @@ async def test_session_reconnect():
         websockets.connect(RELAY_URL, ping_interval=None),
         timeout=5.0,
     )
+    # Consume the automatic session_start that fires on every connection
+    init_raw = await asyncio.wait_for(ws2.recv(), timeout=5.0)
+    init_msg = json.loads(init_raw)
+    assert init_msg["type"] == "session_start", "Should get initial session_start"
+
+    # Now request reconnection with the old session id
     await ws2.send(json.dumps({"type": "reconnect", "session_id": sid}))
     raw = await asyncio.wait_for(ws2.recv(), timeout=5.0)
     msg = json.loads(raw)
     assert msg["type"] == "session_start"
+    assert msg.get("resumed") is True, "Should indicate resumed session"
     assert msg["session_id"] == sid, "Should restore same session"
     await ws2.close()
 

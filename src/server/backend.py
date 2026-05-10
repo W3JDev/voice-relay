@@ -58,16 +58,29 @@ class AIBackend:
             try:
                 from openai import AsyncOpenAI
 
+                # Use a dummy key if none provided so the client can be constructed.
+                # Actual API calls will fail gracefully in chat()/chat_stream().
+                key = self.api_key or "not-configured"
                 self._client = AsyncOpenAI(
-                    api_key=self.api_key,
+                    api_key=key,
                     base_url=self.url if self.url != "https://api.openai.com/v1" else None,
                 )
-                logger.info(
-                    f"AI backend ready  (type={self.backend_type}, "
-                    f"model={self.model}, url={self.url})"
-                )
+                if self.api_key:
+                    logger.info(
+                        f"AI backend ready  (type={self.backend_type}, "
+                        f"model={self.model}, url={self.url})"
+                    )
+                else:
+                    logger.warning(
+                        f"AI backend created without API key  (type={self.backend_type}). "
+                        "Responses will echo back user input until a key is configured."
+                    )
+                    self._client = None  # Fall back to echo mode
             except ImportError:
                 logger.error("openai package not installed -- AI backend unavailable")
+            except Exception as exc:
+                logger.error(f"Failed to initialise AI backend: {exc}")
+                self._client = None
         else:
             logger.warning(f"Unknown backend type: {self.backend_type}")
 
