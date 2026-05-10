@@ -7,12 +7,13 @@ LABEL description="Phase 1 Voice Relay - lightweight CPU-only relay mode"
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Install system dependencies
+# Install system dependencies (gcc needed for webrtcvad C extension)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         ffmpeg \
         libsndfile1 \
         curl \
+        build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -20,6 +21,9 @@ WORKDIR /app
 # Install Python dependencies first (layer caching)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Remove build tools to shrink image (runtime doesn't need gcc)
+RUN apt-get purge -y --auto-remove build-essential && rm -rf /var/lib/apt/lists/*
 
 # Copy application source
 COPY src/ src/
