@@ -1,0 +1,643 @@
+/* =============================================================================
+   Voice Relay Widget — styles.css
+   Scoped under .vr-widget to avoid leaking into the host page.
+   CSS custom properties allow full theming without extra runtime overhead.
+   ============================================================================= */
+
+/* ---------------------------------------------------------------------------
+   1. CSS custom-property tokens (dark theme defaults)
+   --------------------------------------------------------------------------- */
+.vr-widget {
+  /* Brand colours */
+  --vr-accent:          #ff6b35;
+  --vr-accent-dim:      rgba(255, 107, 53, 0.15);
+  --vr-accent-glow:     rgba(255, 107, 53, 0.4);
+  --vr-gold:            #f7c94b;
+  --vr-cyan:            #4fc3f7;
+
+  /* Surfaces */
+  --vr-bg-primary:      #1a1a2e;
+  --vr-bg-secondary:    #16213e;
+  --vr-bg-surface:      rgba(255, 255, 255, 0.04);
+  --vr-bg-surface-hover:rgba(255, 255, 255, 0.07);
+
+  /* Text */
+  --vr-text-primary:    #e8e8e8;
+  --vr-text-secondary:  #999;
+  --vr-text-muted:      #666;
+  --vr-text-dim:        #555;
+
+  /* Borders */
+  --vr-border:          rgba(255, 255, 255, 0.08);
+  --vr-border-hover:    rgba(255, 255, 255, 0.15);
+
+  /* Semantic */
+  --vr-danger:          #ff4444;
+  --vr-success:         #4caf50;
+  --vr-warning:         #ffb300;
+
+  /* Radius */
+  --vr-radius-sm:       6px;
+  --vr-radius-md:       10px;
+  --vr-radius-lg:       16px;
+
+  /* Typography */
+  --vr-font-sans:       -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+                        'Helvetica Neue', sans-serif;
+  --vr-font-mono:       'SF Mono', Monaco, 'Cascadia Code', 'Consolas', monospace;
+
+  /* Transitions */
+  --vr-t-fast:          150ms ease;
+  --vr-t-normal:        250ms ease;
+}
+
+/* ---------------------------------------------------------------------------
+   2. Light theme overrides
+   --------------------------------------------------------------------------- */
+.vr-widget.vr-theme-light {
+  --vr-bg-primary:      #f5f5f7;
+  --vr-bg-secondary:    #e8e8ed;
+  --vr-bg-surface:      rgba(0, 0, 0, 0.04);
+  --vr-bg-surface-hover:rgba(0, 0, 0, 0.07);
+  --vr-text-primary:    #1c1c1e;
+  --vr-text-secondary:  #48484a;
+  --vr-text-muted:      #8e8e93;
+  --vr-text-dim:        #aeaeb2;
+  --vr-border:          rgba(0, 0, 0, 0.1);
+  --vr-border-hover:    rgba(0, 0, 0, 0.2);
+}
+
+/* ---------------------------------------------------------------------------
+   3. Root shell
+   --------------------------------------------------------------------------- */
+.vr-widget {
+  font-family:     var(--vr-font-sans);
+  font-size:       15px;
+  line-height:     1.5;
+  color:           var(--vr-text-primary);
+  box-sizing:      border-box;
+  -webkit-font-smoothing: antialiased;
+}
+
+.vr-widget *,
+.vr-widget *::before,
+.vr-widget *::after {
+  box-sizing: inherit;
+  margin:     0;
+  padding:    0;
+}
+
+/* Inline / full-width layout */
+.vr-widget.vr-position-inline {
+  background: linear-gradient(135deg, var(--vr-bg-primary) 0%, var(--vr-bg-secondary) 100%);
+  border-radius: var(--vr-radius-lg);
+  padding: 20px;
+  width: 100%;
+}
+
+/* ---------------------------------------------------------------------------
+   4. Fixed-position overlay modes
+   --------------------------------------------------------------------------- */
+.vr-widget.vr-position-bottom-right,
+.vr-widget.vr-position-bottom-left {
+  position:      fixed;
+  bottom:        24px;
+  z-index:       9999;
+  display:       flex;
+  flex-direction:column;
+  align-items:   flex-end;
+  gap:           12px;
+  pointer-events:none; /* let clicks through to the page by default */
+}
+
+.vr-widget.vr-position-bottom-right { right: 24px; align-items: flex-end; }
+.vr-widget.vr-position-bottom-left  { left:  24px; align-items: flex-start; }
+
+/* Re-enable pointer events on interactive children */
+.vr-widget.vr-position-bottom-right > *,
+.vr-widget.vr-position-bottom-left  > * {
+  pointer-events: auto;
+}
+
+/* ---------------------------------------------------------------------------
+   5. Panel card (transcript + controls container)
+   --------------------------------------------------------------------------- */
+.vr-panel {
+  background:    linear-gradient(135deg, var(--vr-bg-primary) 0%, var(--vr-bg-secondary) 100%);
+  border:        1px solid var(--vr-border);
+  border-radius: var(--vr-radius-lg);
+  overflow:      hidden;
+  display:       flex;
+  flex-direction:column;
+  width:         360px;
+  max-width:     calc(100vw - 48px);
+  box-shadow:    0 8px 40px rgba(0, 0, 0, 0.35);
+  animation:     vr-slide-up 220ms ease;
+}
+
+@keyframes vr-slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------------------------------------------------------------------------
+   6. Header bar
+   --------------------------------------------------------------------------- */
+.vr-header {
+  display:         flex;
+  align-items:     center;
+  justify-content: space-between;
+  padding:         10px 14px;
+  border-bottom:   1px solid var(--vr-border);
+  flex-shrink:     0;
+}
+
+.vr-header-left {
+  display:     flex;
+  align-items: center;
+  gap:         8px;
+}
+
+.vr-title {
+  font-size:   0.82rem;
+  font-weight: 600;
+  color:       var(--vr-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Connection badge */
+.vr-conn-badge {
+  display:         flex;
+  align-items:     center;
+  gap:             5px;
+  font-size:       0.72rem;
+  color:           var(--vr-text-muted);
+  padding:         3px 8px;
+  background:      var(--vr-bg-surface);
+  border-radius:   20px;
+}
+
+.vr-conn-dot {
+  width:         7px;
+  height:        7px;
+  border-radius: 50%;
+  background:    var(--vr-text-dim);
+  transition:    background var(--vr-t-normal);
+  flex-shrink:   0;
+}
+
+.vr-conn-dot.connected    { background: var(--vr-success); }
+.vr-conn-dot.reconnecting {
+  background: var(--vr-warning);
+  animation:  vr-blink 1s infinite;
+}
+.vr-conn-dot.disconnected { background: var(--vr-danger); }
+
+@keyframes vr-blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.25; }
+}
+
+/* Icon buttons */
+.vr-icon-btn {
+  width:        30px;
+  height:       30px;
+  display:      flex;
+  align-items:  center;
+  justify-content: center;
+  border:       1px solid var(--vr-border);
+  border-radius:var(--vr-radius-sm);
+  background:   transparent;
+  color:        var(--vr-text-secondary);
+  cursor:       pointer;
+  font-size:    0.9rem;
+  line-height:  1;
+  transition:   all var(--vr-t-fast);
+  flex-shrink:  0;
+}
+
+.vr-icon-btn:hover {
+  border-color: var(--vr-border-hover);
+  color:        var(--vr-text-primary);
+  background:   var(--vr-bg-surface-hover);
+}
+
+/* ---------------------------------------------------------------------------
+   7. Voice / controls area
+   --------------------------------------------------------------------------- */
+.vr-voice-area {
+  display:        flex;
+  flex-direction: column;
+  align-items:    center;
+  gap:            12px;
+  padding:        18px 16px 14px;
+}
+
+/* Waveform canvas */
+.vr-waveform-wrap {
+  width:    100%;
+  max-width:380px;
+  height:   54px;
+  flex-shrink: 0;
+}
+
+.vr-waveform-canvas {
+  width:         100%;
+  height:        100%;
+  border-radius: var(--vr-radius-md);
+  background:    var(--vr-bg-surface);
+  display:       block;
+}
+
+/* Main mic button */
+.vr-mic-btn {
+  width:         96px;
+  height:        96px;
+  border-radius: 50%;
+  border:        none;
+  background:    linear-gradient(135deg, var(--vr-accent) 0%, #e55a2b 100%);
+  color:         #fff;
+  font-size:     0.78rem;
+  font-weight:   600;
+  cursor:        pointer;
+  transition:    all var(--vr-t-normal);
+  box-shadow:    0 6px 28px var(--vr-accent-glow);
+  display:       flex;
+  flex-direction:column;
+  align-items:   center;
+  justify-content: center;
+  gap:           4px;
+  position:      relative;
+  flex-shrink:   0;
+  user-select:   none;
+  -webkit-user-select: none;
+  touch-action:  none; /* prevent scroll during PTT */
+}
+
+.vr-mic-btn:hover:not(:disabled) {
+  transform:  scale(1.04);
+  box-shadow: 0 10px 40px var(--vr-accent-glow);
+}
+
+.vr-mic-btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.vr-mic-btn:disabled {
+  opacity: 0.5;
+  cursor:  not-allowed;
+}
+
+.vr-mic-btn.listening {
+  animation:  vr-pulse 1.5s ease-in-out infinite;
+  background: linear-gradient(135deg, #e55a2b 0%, #c44a22 100%);
+}
+
+.vr-mic-btn.listening::after {
+  content:       '';
+  position:      absolute;
+  inset:         -6px;
+  border-radius: 50%;
+  border:        2px solid var(--vr-accent);
+  opacity:       0;
+  animation:     vr-ring 1.5s ease-out infinite;
+}
+
+@keyframes vr-pulse {
+  0%, 100% { box-shadow: 0 6px 28px var(--vr-accent-glow); }
+  50%      { box-shadow: 0 6px 48px rgba(255, 107, 53, 0.6); }
+}
+
+@keyframes vr-ring {
+  0%   { transform: scale(1);   opacity: 0.5; }
+  100% { transform: scale(1.35); opacity: 0; }
+}
+
+/* SVG mic icon */
+.vr-mic-icon {
+  width:  24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.vr-mic-btn-label {
+  font-size:   0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-align:  center;
+  line-height: 1.1;
+}
+
+/* VAD indicator dot */
+.vr-vad-dot {
+  width:         8px;
+  height:        8px;
+  border-radius: 50%;
+  background:    var(--vr-text-dim);
+  position:      absolute;
+  top:           8px;
+  right:         8px;
+  transition:    background var(--vr-t-fast);
+}
+
+.vr-vad-dot.active {
+  background: var(--vr-success);
+  box-shadow: 0 0 6px rgba(76, 175, 80, 0.7);
+}
+
+/* Controls row (continuous toggle + barge-in) */
+.vr-controls-row {
+  display:     flex;
+  align-items: center;
+  gap:         14px;
+}
+
+.vr-toggle-wrap {
+  display:     flex;
+  align-items: center;
+  gap:         7px;
+}
+
+.vr-toggle {
+  position:    relative;
+  width:       40px;
+  height:      22px;
+  flex-shrink: 0;
+}
+
+.vr-toggle input {
+  opacity:  0;
+  width:    0;
+  height:   0;
+  position: absolute;
+}
+
+.vr-toggle-slider {
+  position:      absolute;
+  cursor:        pointer;
+  inset:         0;
+  background:    #333;
+  border-radius: 22px;
+  transition:    background var(--vr-t-normal);
+}
+
+.vr-toggle-slider::before {
+  content:       '';
+  position:      absolute;
+  width:         16px;
+  height:        16px;
+  left:          3px;
+  bottom:        3px;
+  background:    #fff;
+  border-radius: 50%;
+  transition:    transform var(--vr-t-normal);
+}
+
+.vr-toggle input:checked + .vr-toggle-slider {
+  background: var(--vr-accent);
+}
+
+.vr-toggle input:checked + .vr-toggle-slider::before {
+  transform: translateX(18px);
+}
+
+.vr-toggle-label {
+  font-size:  0.8rem;
+  font-weight:500;
+  color:      var(--vr-text-secondary);
+  cursor:     pointer;
+  user-select:none;
+}
+
+/* Barge-in flash badge */
+.vr-barge-in {
+  display:     none;
+  align-items: center;
+  gap:         5px;
+  font-size:   0.7rem;
+  color:       var(--vr-warning);
+  padding:     3px 9px;
+  background:  rgba(255, 179, 0, 0.1);
+  border:      1px solid rgba(255, 179, 0, 0.2);
+  border-radius: var(--vr-radius-sm);
+}
+
+.vr-barge-in.visible {
+  display:   inline-flex;
+  animation: vr-fade-in-out 1.5s ease forwards;
+}
+
+@keyframes vr-fade-in-out {
+  0%   { opacity: 0; }
+  15%  { opacity: 1; }
+  70%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* Status line */
+.vr-status {
+  font-size:  0.8rem;
+  color:      var(--vr-text-muted);
+  text-align: center;
+  min-height: 1.2em;
+  transition: color var(--vr-t-fast);
+}
+
+.vr-status.active { color: var(--vr-accent); }
+
+/* ---------------------------------------------------------------------------
+   8. Transcript panel
+   --------------------------------------------------------------------------- */
+.vr-transcript {
+  border-top:     1px solid var(--vr-border);
+  display:        flex;
+  flex-direction: column;
+  overflow:       hidden;
+}
+
+.vr-transcript-body {
+  flex:             1;
+  overflow-y:       auto;
+  padding:          12px 14px;
+  display:          flex;
+  flex-direction:   column;
+  gap:              8px;
+  max-height:       240px;
+  scroll-behavior:  smooth;
+}
+
+/* Scrollbar */
+.vr-transcript-body::-webkit-scrollbar        { width: 4px; }
+.vr-transcript-body::-webkit-scrollbar-track  { background: transparent; }
+.vr-transcript-body::-webkit-scrollbar-thumb  { background: var(--vr-border); border-radius: 4px; }
+.vr-transcript-body::-webkit-scrollbar-thumb:hover { background: var(--vr-border-hover); }
+
+/* Message bubbles */
+.vr-msg {
+  max-width:   85%;
+  padding:     9px 12px;
+  border-radius: var(--vr-radius-md);
+  font-size:   0.875rem;
+  line-height: 1.55;
+  word-wrap:   break-word;
+  overflow-wrap: break-word;
+  animation:   vr-msg-in 180ms ease;
+}
+
+@keyframes vr-msg-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.vr-msg.user {
+  align-self:               flex-end;
+  background:               var(--vr-accent-dim);
+  color:                    var(--vr-text-primary);
+  border-bottom-right-radius: 3px;
+}
+
+.vr-msg.assistant {
+  align-self:              flex-start;
+  background:              rgba(79, 195, 247, 0.1);
+  color:                   var(--vr-text-primary);
+  border-bottom-left-radius: 3px;
+}
+
+.vr-msg.partial {
+  opacity:    0.65;
+  font-style: italic;
+}
+
+.vr-msg-speaker {
+  display:        block;
+  font-size:      0.66rem;
+  font-weight:    700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom:  3px;
+}
+
+.vr-msg.user      .vr-msg-speaker { color: var(--vr-accent); }
+.vr-msg.assistant .vr-msg-speaker { color: var(--vr-cyan); }
+
+/* Inline code inside messages */
+.vr-msg code {
+  background:   rgba(255, 255, 255, 0.08);
+  padding:      1px 4px;
+  border-radius:3px;
+  font-family:  var(--vr-font-mono);
+  font-size:    0.85em;
+}
+
+.vr-msg pre {
+  background:   rgba(0, 0, 0, 0.3);
+  border-radius:var(--vr-radius-sm);
+  padding:      8px 10px;
+  margin:       5px 0;
+  overflow-x:   auto;
+  font-family:  var(--vr-font-mono);
+  font-size:    0.8em;
+  white-space:  pre-wrap;
+}
+
+.vr-msg a {
+  color:           var(--vr-accent);
+  text-decoration: none;
+}
+
+.vr-msg a:hover { text-decoration: underline; }
+
+/* ---------------------------------------------------------------------------
+   9. Error bar
+   --------------------------------------------------------------------------- */
+.vr-error {
+  margin:        8px 14px;
+  padding:       7px 12px;
+  background:    rgba(255, 68, 68, 0.1);
+  border:        1px solid rgba(255, 68, 68, 0.25);
+  border-radius: var(--vr-radius-sm);
+  color:         var(--vr-danger);
+  font-size:     0.78rem;
+  line-height:   1.4;
+  animation:     vr-msg-in 150ms ease;
+}
+
+/* ---------------------------------------------------------------------------
+   10. Footer (session ID)
+   --------------------------------------------------------------------------- */
+.vr-footer {
+  display:         flex;
+  justify-content: flex-end;
+  padding:         6px 14px 8px;
+  border-top:      1px solid var(--vr-border);
+}
+
+.vr-session-id {
+  font-size:   0.62rem;
+  font-family: var(--vr-font-mono);
+  color:       var(--vr-text-dim);
+  opacity:     0.8;
+  cursor:      default;
+}
+
+/* ---------------------------------------------------------------------------
+   11. Compact mode (floating button only)
+   --------------------------------------------------------------------------- */
+.vr-widget.vr-compact .vr-panel {
+  width:      auto;
+  background: transparent;
+  border:     none;
+  box-shadow: none;
+  overflow:   visible;
+  padding:    0;
+}
+
+/* The FAB itself gets a shadow ring */
+.vr-widget.vr-compact .vr-mic-btn {
+  width:      64px;
+  height:     64px;
+  box-shadow: 0 4px 20px var(--vr-accent-glow),
+              0 0 0 2px rgba(255, 107, 53, 0.2);
+}
+
+/* Hide everything except the mic button in compact mode */
+.vr-widget.vr-compact .vr-waveform-wrap,
+.vr-widget.vr-compact .vr-controls-row,
+.vr-widget.vr-compact .vr-status,
+.vr-widget.vr-compact .vr-transcript,
+.vr-widget.vr-compact .vr-header,
+.vr-widget.vr-compact .vr-error,
+.vr-widget.vr-compact .vr-footer {
+  display: none;
+}
+
+.vr-widget.vr-compact .vr-voice-area {
+  padding: 0;
+}
+
+/* ---------------------------------------------------------------------------
+   12. Responsive
+   --------------------------------------------------------------------------- */
+@media (max-width: 480px) {
+  .vr-panel {
+    width:     100%;
+    max-width: 100%;
+  }
+
+  .vr-widget.vr-position-bottom-right,
+  .vr-widget.vr-position-bottom-left {
+    right:  12px;
+    left:   12px;
+    bottom: 12px;
+  }
+
+  .vr-mic-btn {
+    width:  80px;
+    height: 80px;
+  }
+
+  .vr-waveform-wrap { height: 44px; }
+
+  .vr-transcript-body { max-height: 180px; }
+}

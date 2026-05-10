@@ -7,9 +7,14 @@ services:
     build: .
     ports:
       - "8765:8765"
+    volumes:
+      - voice-relay-data:/data
     environment:
       - OPENCLAW_HOST=0.0.0.0
       - OPENCLAW_PORT=8765
+      # Phase 2: SQLite persistence and admin auth
+      - OPENCLAW_DB_PATH=/data/voice_relay.db
+      - OPENCLAW_MASTER_KEY=${OPENCLAW_MASTER_KEY:-change-me-in-production}
       # Point at your Speaches instance for STT/TTS
       - VSAAS_URL=${VSAAS_URL:-http://speaches:8000}
       - VSAAS_API_KEY=${VSAAS_API_KEY:-}
@@ -45,4 +50,5 @@ services:
     restart: unless-stopped
 
 volumes:
+  voice-relay-data:
   speaches-models:
