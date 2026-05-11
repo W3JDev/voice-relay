@@ -377,6 +377,19 @@ async def index():
     return FileResponse("src/client/index.html")
 
 
+@app.get("/admin/dashboard")
+@app.get("/admin/dashboard/")
+async def admin_dashboard():
+    """Serve the admin dashboard UI."""
+    dashboard_path = Path("admin-dashboard.html")
+    if dashboard_path.exists():
+        return FileResponse(str(dashboard_path))
+    return JSONResponse(
+        {"error": "Admin dashboard not found"},
+        status_code=404,
+    )
+
+
 @app.get("/agents")
 async def public_agents():
     """

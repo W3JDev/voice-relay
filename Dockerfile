@@ -34,6 +34,7 @@ ARG CACHEBUST=1
 
 # Copy application source
 COPY src/ src/
+COPY admin-dashboard.html .
 
 # Build the React widget
 COPY widget/ widget/

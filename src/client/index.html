@@ -749,14 +749,14 @@
                 </div>
 
                 <button class="voice-button" id="voiceBtn">
-                    Hold to Talk
+                    Tap to Talk
                     <span class="vad-dot" id="vadDot"></span>
                 </button>
 
                 <div class="voice-controls">
                     <div class="continuous-toggle">
                         <label class="toggle-switch">
-                            <input type="checkbox" id="continuousMode" />
+                            <input type="checkbox" id="continuousMode" checked />
                             <span class="toggle-slider"></span>
                         </label>
                         <span class="toggle-label">Continuous</span>
@@ -834,7 +834,7 @@
         let sourceNode           = null;
         let analyserNode         = null;
         let isRecording          = false;
-        let continuousMode       = false;
+        let continuousMode       = true;
         let sessionId            = null;
         let reconnectTimer       = null;
         let reconnectDelay       = 1000;
