@@ -293,6 +293,8 @@ async def startup():
     stt = WhisperSTT(
         model_name=settings.stt_model,
         device=settings.stt_device,
+        api_url=os.environ.get("VSAAS_URL"),
+        api_key=os.environ.get("VSAAS_API_KEY"),
     )
 
     # --- TTS ---
