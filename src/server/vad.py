@@ -32,7 +32,16 @@ class VoiceActivityDetector:
     Maintains internal state to detect when speech starts and ends,
     enabling upstream code to accumulate speech segments and flush
     them at appropriate boundaries.
+
+    Handles small audio chunks (e.g. 128-sample AudioWorklet quanta)
+    by buffering internally until there are enough samples for the
+    underlying model.  Silero VAD requires >= 512 samples at 16 kHz.
     """
+
+    # Silero VAD minimum: 512 samples at 16 kHz (32 ms).
+    # We use 512 as the target to keep latency low while meeting the
+    # model's minimum input size.
+    _MIN_SILERO_SAMPLES = 512
 
     def __init__(
         self,
@@ -51,6 +60,11 @@ class VoiceActivityDetector:
         self._speech_start_time: Optional[float] = None
         self._last_speech_time: Optional[float] = None
         self._silence_start_time: Optional[float] = None
+
+        # Internal audio buffer for accumulating small chunks
+        self._audio_buffer: list = []
+        self._buffer_samples: int = 0
+        self._last_probability: float = 0.0
 
         # VAD backend
         self._backend = "none"
@@ -96,10 +110,28 @@ class VoiceActivityDetector:
         """
         Get the probability that the audio chunk contains speech.
 
+        For Silero VAD, small chunks (< 512 samples) are accumulated
+        in an internal buffer.  Once enough samples are collected the
+        model runs and the result is cached until the next inference.
+        Between inferences the last computed probability is returned
+        so callers always get a value immediately.
+
         Returns a float between 0.0 and 1.0.
         """
         if self._backend == "silero":
-            return self._silero_probability(audio)
+            # Buffer small chunks until we have enough for Silero
+            self._audio_buffer.append(audio)
+            self._buffer_samples += len(audio)
+
+            if self._buffer_samples >= self._MIN_SILERO_SAMPLES:
+                # Concatenate buffered chunks and run inference
+                combined = np.concatenate(self._audio_buffer)
+                self._audio_buffer = []
+                self._buffer_samples = 0
+                self._last_probability = self._silero_probability(combined)
+
+            return self._last_probability
+
         elif self._backend == "webrtcvad":
             return self._webrtcvad_probability(audio)
         else:
@@ -260,6 +292,10 @@ class VoiceActivityDetector:
         self._speech_start_time = None
         self._last_speech_time = None
         self._silence_start_time = None
+        # Clear the internal audio buffer
+        self._audio_buffer = []
+        self._buffer_samples = 0
+        self._last_probability = 0.0
         # Reset Silero hidden state if applicable
         if self._backend == "silero" and self._silero_model is not None:
             try:
