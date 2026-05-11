@@ -375,6 +375,32 @@ async def index():
     return FileResponse("src/client/index.html")
 
 
+@app.get("/agents")
+async def public_agents():
+    """
+    Return a lightweight list of available agents for the voice client UI.
+
+    This is a PUBLIC endpoint (no admin auth required) that returns only
+    the agent id, name, and default flag — no API keys, URLs, or other
+    sensitive config.
+    """
+    if db is None:
+        return JSONResponse([])
+    try:
+        records = await db.list_agents()
+        return JSONResponse([
+            {
+                "id": r["id"],
+                "name": r["name"],
+                "is_default": bool(r.get("is_default", False)),
+            }
+            for r in records
+        ])
+    except Exception as exc:
+        logger.warning(f"Failed to fetch public agent list: {exc}")
+        return JSONResponse([])
+
+
 # ---------------------------------------------------------------------------
 # Usage tracking helpers
 # ---------------------------------------------------------------------------
@@ -1145,20 +1171,77 @@ async def _handle_config(session: SessionState, msg: dict) -> None:
     """
     Handle a client config message.
 
-    Example payload::
+    Supports two modes:
 
-        {
-            "type": "config",
-            "agent": {
-                "backend_url": "https://my-custom-llm/v1",
-                "model": "my-model"
-            }
-        }
+    1. **Agent selection** (Phase 2 preferred) — pick a registered agent by ID::
 
-    This allows clients to redirect the LLM backend on a per-session basis.
-    The AgentRouter will honour these overrides at priority 1.
+        {"type": "config", "agent_id": "openclaw"}
+
+    2. **Raw override** (Phase 1 compat) — specify backend URL and model directly::
+
+        {"type": "config", "agent": {"backend_url": "https://...", "model": "..."}}
+
+    If ``agent_id`` is provided, it takes priority: the session's
+    ``backend_url_override`` and ``backend_model_override`` are set from the
+    looked-up agent record so the AgentRouter resolves correctly.
     """
     ws = session.websocket
+
+    # --- Mode 1: agent_id selection (Phase 2) ---
+    agent_id = msg.get("agent_id")
+    if agent_id and db is not None:
+        try:
+            agent_record = await db.get_agent(agent_id)
+            if agent_record:
+                session.backend_url_override = agent_record.get("url")
+                session.backend_model_override = agent_record.get("model")
+                session.agent_id = agent_id
+
+                # Invalidate cached backend
+                if hasattr(session, "_backend_instance"):
+                    try:
+                        delattr(session, "_backend_instance")
+                    except AttributeError:
+                        pass
+
+                # Persist to DB
+                try:
+                    await db.update_session(
+                        session.session_id,
+                        agent_id=agent_id,
+                        backend_url_override=session.backend_url_override,
+                        backend_model_override=session.backend_model_override,
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        f"Failed to persist agent config for session "
+                        f"{session.session_id}: {exc}"
+                    )
+
+                if ws is not None:
+                    await ws.send_json({
+                        "type": "config_ack",
+                        "agent_id": agent_id,
+                        "agent_name": agent_record.get("name", agent_id),
+                        "model": session.backend_model_override,
+                    })
+                logger.info(
+                    f"Session {session.session_id}: switched to agent "
+                    f"{agent_id!r} (model={session.backend_model_override})"
+                )
+                return
+            else:
+                logger.warning(f"Agent {agent_id!r} not found in DB")
+                if ws is not None:
+                    await ws.send_json({
+                        "type": "error",
+                        "message": f"Agent '{agent_id}' not found",
+                    })
+                return
+        except Exception as exc:
+            logger.error(f"Error looking up agent {agent_id!r}: {exc}")
+
+    # --- Mode 2: raw override (Phase 1 compat) ---
     agent = msg.get("agent", {})
     if not agent:
         return

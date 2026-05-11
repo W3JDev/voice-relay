@@ -706,38 +706,32 @@
 
         <!-- Settings Panel (collapsed by default) -->
         <div class="settings-panel" id="settingsPanel">
-            <h3>Connection Settings</h3>
+            <h3>Voice Settings</h3>
             <div class="settings-grid">
                 <div class="settings-field full-width">
-                    <label for="settingUrl">VSaaS URL</label>
-                    <input type="text" id="settingUrl" placeholder="wss://your-server.com/ws" />
-                </div>
-                <div class="settings-field">
-                    <label for="settingApiKey">API Key</label>
-                    <input type="password" id="settingApiKey" placeholder="sk-..." />
-                </div>
-                <div class="settings-field">
-                    <label for="settingBackend">Agent Backend</label>
-                    <select id="settingBackend">
-                        <option value="openai">OpenAI</option>
-                        <option value="anthropic">Anthropic</option>
-                        <option value="local">Local / Custom</option>
+                    <label for="settingAgent">AI Agent</label>
+                    <select id="settingAgent">
+                        <option value="">Loading agents...</option>
                     </select>
-                </div>
-                <div class="settings-field">
-                    <label for="settingModel">Model</label>
-                    <input type="text" id="settingModel" placeholder="gpt-4o-mini" />
                 </div>
                 <div class="settings-field">
                     <label for="settingVoice">Voice</label>
                     <select id="settingVoice">
-                        <option value="alloy">Alloy</option>
-                        <option value="echo">Echo</option>
-                        <option value="fable">Fable</option>
-                        <option value="onyx">Onyx</option>
-                        <option value="nova">Nova</option>
-                        <option value="shimmer">Shimmer</option>
+                        <option value="af_heart">Heart (warm, default)</option>
+                        <option value="af_nova">Nova (clear)</option>
+                        <option value="af_sky">Sky (bright)</option>
+                        <option value="af_bella">Bella (soft)</option>
+                        <option value="af_sarah">Sarah (natural)</option>
+                        <option value="af_nicole">Nicole (smooth)</option>
+                        <option value="am_adam">Adam (male, deep)</option>
+                        <option value="am_michael">Michael (male, warm)</option>
+                        <option value="bf_emma">Emma (British)</option>
+                        <option value="bm_george">George (British male)</option>
                     </select>
+                </div>
+                <div class="settings-field">
+                    <label for="settingApiKey">API Key <span style="font-weight:300;color:var(--text-muted)">(optional)</span></label>
+                    <input type="password" id="settingApiKey" placeholder="vr_live_..." />
                 </div>
             </div>
             <div class="settings-actions">
@@ -821,11 +815,14 @@
         const settingsSave    = document.getElementById('settingsSave');
 
         /* Settings inputs */
-        const settingUrl      = document.getElementById('settingUrl');
+        const settingAgent    = document.getElementById('settingAgent');
         const settingApiKey   = document.getElementById('settingApiKey');
-        const settingBackend  = document.getElementById('settingBackend');
-        const settingModel    = document.getElementById('settingModel');
         const settingVoice    = document.getElementById('settingVoice');
+
+        /* Removed in Phase 2 (agent routing replaces these) */
+        const settingUrl      = { value: '' };  // stub for compat
+        const settingBackend  = { value: '' };   // stub for compat
+        const settingModel    = { value: '' };   // stub for compat
 
         /* ================================================================
          *  State
@@ -870,11 +867,9 @@
                 const raw = localStorage.getItem(SETTINGS_KEY);
                 if (raw) {
                     const s = JSON.parse(raw);
-                    if (s.url)     settingUrl.value     = s.url;
-                    if (s.apiKey)  settingApiKey.value   = s.apiKey;
-                    if (s.backend) settingBackend.value  = s.backend;
-                    if (s.model)   settingModel.value    = s.model;
-                    if (s.voice)   settingVoice.value    = s.voice;
+                    if (s.apiKey)   settingApiKey.value   = s.apiKey;
+                    if (s.voice)    settingVoice.value    = s.voice;
+                    if (s.agentId)  settingAgent.dataset.savedAgentId = s.agentId;
                 }
             } catch (_) { /* ignore */ }
 
@@ -884,17 +879,64 @@
             if (paramKey && !settingApiKey.value) {
                 settingApiKey.value = paramKey;
             }
+
+            /* Check URL params for agent_id */
+            const paramAgent = urlParams.get('agent');
+            if (paramAgent) {
+                settingAgent.dataset.savedAgentId = paramAgent;
+            }
+
+            /* Fetch available agents from server */
+            fetchAgentList();
         }
 
         function saveSettings() {
             const s = {
-                url:     settingUrl.value.trim(),
                 apiKey:  settingApiKey.value.trim(),
-                backend: settingBackend.value,
-                model:   settingModel.value.trim(),
                 voice:   settingVoice.value,
+                agentId: settingAgent.value,
             };
-            localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+            try {
+                localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+            } catch (_) { /* sandboxed iframe - ignore */ }
+        }
+
+        async function fetchAgentList() {
+            try {
+                var protocol = window.location.protocol;
+                var agentsUrl = protocol + '//' + window.location.host + '/agents';
+                var resp = await fetch(agentsUrl);
+                var agents = await resp.json();
+
+                settingAgent.innerHTML = '';
+
+                if (agents.length === 0) {
+                    settingAgent.innerHTML = '<option value="">No agents configured</option>';
+                    return;
+                }
+
+                agents.forEach(function(a) {
+                    var opt = document.createElement('option');
+                    opt.value = a.id;
+                    opt.textContent = a.name + (a.is_default ? ' (default)' : '');
+                    if (a.is_default) opt.selected = true;
+                    settingAgent.appendChild(opt);
+                });
+
+                /* Restore saved selection */
+                var saved = settingAgent.dataset.savedAgentId;
+                if (saved) {
+                    for (var i = 0; i < settingAgent.options.length; i++) {
+                        if (settingAgent.options[i].value === saved) {
+                            settingAgent.selectedIndex = i;
+                            break;
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn('Failed to fetch agents:', err);
+                settingAgent.innerHTML = '<option value="">Could not load agents</option>';
+            }
         }
 
         function getApiKey() {
@@ -1051,6 +1093,12 @@
                 if (sessionId) {
                     wsSend({ type: 'reconnect', session_id: sessionId });
                 }
+
+                /* Send agent selection to server */
+                var selectedAgent = settingAgent.value;
+                if (selectedAgent) {
+                    wsSend({ type: 'config', agent_id: selectedAgent });
+                }
             };
 
             ws.onclose = function (event) {
@@ -1111,6 +1159,18 @@
                     if (sessionId) {
                         sessionIdLabel.textContent = 'session: ' + sessionId.slice(0, 8);
                         sessionIdLabel.title = sessionId;
+                    }
+                    break;
+
+                case 'config_ack':
+                    if (msg.agent_name) {
+                        setStatus('Connected to ' + msg.agent_name);
+                    }
+                    break;
+
+                case 'error':
+                    if (msg.message) {
+                        showError(msg.message);
                     }
                     break;
 
