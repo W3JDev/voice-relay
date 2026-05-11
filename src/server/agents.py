@@ -67,22 +67,27 @@ class AgentRouter:
 
         The resolution priority is:
 
-        1. **Session-level override** — the client sent a ``{"type":"config",
-           "agent": {...}}`` message that set ``backend_url_override`` and/or
-           ``backend_model_override`` on the session.
-        2. **API key assignment** — the API key record has a non-null
+        1. **Session agent_id** — the client selected a registered agent via
+           ``{"type":"config","agent_id":"..."}`` (Phase 2).  The full agent
+           record (including system_prompt, url, model, api_key) is loaded
+           from the database.
+        2. **Session-level raw override** — the client sent a Phase 1-style
+           ``{"type":"config","agent":{"backend_url":"...","model":"..."}}``
+           message.  Only url/model are overridden; system_prompt falls
+           back to the default.
+        3. **API key assignment** — the API key record has a non-null
            ``agent_id`` column pointing to a registered agent.
-        3. **System default agent** — an agent row with ``is_default=TRUE``
+        4. **System default agent** — an agent row with ``is_default=TRUE``
            in the database.
-        4. **Env-var fallback** — construct an :class:`~backend.AIBackend`
+        5. **Env-var fallback** — construct an :class:`~backend.AIBackend`
            directly from the Phase 1 environment variables
            (``OPENCLAW_BACKEND_URL``, ``OPENCLAW_BACKEND_MODEL``,
            ``OPENCLAW_OPENAI_API_KEY`` / ``OPENAI_API_KEY``).
 
         Args:
             session: A :class:`~main.SessionState` instance.  The method reads
-                     ``backend_url_override`` and ``backend_model_override``
-                     from it to detect priority-1 overrides.
+                     ``agent_id``, ``backend_url_override`` and
+                     ``backend_model_override`` from it.
             api_key_record: The API key dict returned by
                             :meth:`~database.Database.validate_api_key`, or
                             ``None`` if the connection is unauthenticated.
@@ -91,7 +96,23 @@ class AgentRouter:
             A ready-to-use :class:`~backend.AIBackend` instance.
         """
         # ------------------------------------------------------------------
-        # Priority 1: session-level override (set via "config" message)
+        # Priority 1: session agent_id (Phase 2 agent selection)
+        # ------------------------------------------------------------------
+        agent_id = getattr(session, "agent_id", None)
+        if agent_id:
+            logger.debug(
+                f"Session {session.session_id}: using agent_id={agent_id!r}"
+            )
+            try:
+                return await self.get_or_create_backend(agent_id)
+            except LookupError:
+                logger.warning(
+                    f"Agent '{agent_id}' from session not found in DB; "
+                    "falling through to raw override"
+                )
+
+        # ------------------------------------------------------------------
+        # Priority 2: session-level raw override (Phase 1 compat)
         # ------------------------------------------------------------------
         url_override = getattr(session, "backend_url_override", None)
         model_override = getattr(session, "backend_model_override", None)
@@ -107,7 +128,7 @@ class AgentRouter:
             )
 
         # ------------------------------------------------------------------
-        # Priority 2: API key's assigned agent
+        # Priority 3: API key's assigned agent
         # ------------------------------------------------------------------
         if api_key_record and api_key_record.get("agent_id"):
             agent_id: str = api_key_record["agent_id"]

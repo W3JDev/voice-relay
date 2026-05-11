@@ -1055,6 +1055,10 @@
         /* ================================================================
          *  WebSocket Connection
          * ================================================================ */
+        var pageVisible = true;          /* track tab visibility */
+        var intentionalClose = false;    /* suppress reconnect after settings save */
+        var lastPongTime = 0;            /* track server liveness */
+
         function buildWsUrl() {
             var custom = settingUrl.value.trim();
             if (custom) return custom;
@@ -1069,6 +1073,7 @@
 
         function connect() {
             if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+                intentionalClose = true;
                 ws.close();
             }
 
@@ -1088,6 +1093,9 @@
                 setConnection('connected');
                 clearError();
                 reconnectDelay = 1000;
+                intentionalClose = false;
+                lastPongTime = Date.now();
+                console.log('[ws] connected');
 
                 /* If we have a previous session, attempt reconnect */
                 if (sessionId) {
@@ -1105,6 +1113,8 @@
                 setConnection('disconnected');
                 stopRecordingCleanup();
 
+                console.log('[ws] closed: code=' + event.code + ' reason=' + (event.reason || '(none)') + ' wasClean=' + event.wasClean);
+
                 if (event.code === 4001) {
                     setStatus('API key required');
                     showError('This server requires an API key. Set it in Settings or add ?api_key=YOUR_KEY to the URL.');
@@ -1120,15 +1130,34 @@
                     showError('Too many requests. Please wait and try again.');
                     return;
                 }
+                if (event.code === 4004) {
+                    setStatus('Quota exceeded');
+                    showError('Monthly minute quota exceeded for this API key.');
+                    return;
+                }
+
+                /* Don't auto-reconnect if the page is hidden (laptop sleep, tab switch) */
+                if (!pageVisible) {
+                    setStatus('Paused - will reconnect when tab is visible');
+                    return;
+                }
+
+                /* Intentional close (settings save) -- reconnect immediately */
+                if (intentionalClose) {
+                    intentionalClose = false;
+                    return;
+                }
 
                 /* Exponential backoff reconnect */
-                setStatus('Disconnected - reconnecting in ' + Math.round(reconnectDelay / 1000) + 's');
+                var delaySec = Math.round(reconnectDelay / 1000);
+                setStatus('Disconnected - reconnecting in ' + delaySec + 's');
                 clearTimeout(reconnectTimer);
                 reconnectTimer = setTimeout(connect, reconnectDelay);
                 reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY);
             };
 
             ws.onerror = function () {
+                console.error('[ws] error event');
                 showError('WebSocket error. Is the server running?');
             };
 
@@ -1142,6 +1171,20 @@
                 handleMessage(msg);
             };
         }
+
+        /* Pause/resume WebSocket on tab visibility change */
+        document.addEventListener('visibilitychange', function () {
+            pageVisible = !document.hidden;
+            if (pageVisible) {
+                /* Tab became visible - reconnect if disconnected */
+                if (!ws || ws.readyState !== WebSocket.OPEN) {
+                    console.log('[ws] tab visible, reconnecting...');
+                    reconnectDelay = 1000;
+                    clearTimeout(reconnectTimer);
+                    connect();
+                }
+            }
+        });
 
         function wsSend(obj) {
             if (ws && ws.readyState === WebSocket.OPEN) {
@@ -1233,6 +1276,7 @@
                     break;
 
                 case 'pong':
+                    lastPongTime = Date.now();
                     break;
 
                 default:
@@ -1718,6 +1762,7 @@
             sessionId = null;
             sessionIdLabel.textContent = '';
             if (isRecording) stopRecording();
+            intentionalClose = true;
             connect();
         });
 
@@ -1734,11 +1779,21 @@
         });
 
         /* ================================================================
-         *  Keep-Alive Ping
+         *  Keep-Alive Ping (with dead-connection detection)
          * ================================================================ */
         setInterval(function () {
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
+            if (!pageVisible) return;  /* don't ping in background tabs */
+
+            /* If we haven't received a pong in 45s, the connection is dead */
+            if (lastPongTime && (Date.now() - lastPongTime > 45000)) {
+                console.warn('[ws] no pong in 45s, connection dead - reconnecting');
+                ws.close();
+                return;
+            }
+
             wsSend({ type: 'ping' });
-        }, 30000);
+        }, 15000);  /* ping every 15s (Railway proxy timeout is ~60s) */
 
         /* ================================================================
          *  Initialization

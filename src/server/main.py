@@ -1193,24 +1193,34 @@ async def _handle_config(session: SessionState, msg: dict) -> None:
         try:
             agent_record = await db.get_agent(agent_id)
             if agent_record:
-                session.backend_url_override = agent_record.get("url")
-                session.backend_model_override = agent_record.get("model")
+                # Set agent_id on session -- AgentRouter resolves the full
+                # agent config (url, model, system_prompt, api_key) from the
+                # DB via get_or_create_backend.  We intentionally do NOT set
+                # backend_url_override / backend_model_override here because
+                # that would bypass the cached-backend path and lose the
+                # agent's system_prompt.
                 session.agent_id = agent_id
+                session.backend_url_override = None
+                session.backend_model_override = None
 
-                # Invalidate cached backend
+                # Invalidate any cached per-session backend so the router
+                # re-resolves on the next voice turn
                 if hasattr(session, "_backend_instance"):
                     try:
                         delattr(session, "_backend_instance")
                     except AttributeError:
                         pass
 
+                # Also invalidate the AgentRouter cache for this agent so
+                # any recent admin changes are picked up
+                if agent_router is not None:
+                    agent_router.invalidate_cache(agent_id)
+
                 # Persist to DB
                 try:
                     await db.update_session(
                         session.session_id,
                         agent_id=agent_id,
-                        backend_url_override=session.backend_url_override,
-                        backend_model_override=session.backend_model_override,
                     )
                 except Exception as exc:
                     logger.warning(
@@ -1223,11 +1233,11 @@ async def _handle_config(session: SessionState, msg: dict) -> None:
                         "type": "config_ack",
                         "agent_id": agent_id,
                         "agent_name": agent_record.get("name", agent_id),
-                        "model": session.backend_model_override,
+                        "model": agent_record.get("model"),
                     })
                 logger.info(
                     f"Session {session.session_id}: switched to agent "
-                    f"{agent_id!r} (model={session.backend_model_override})"
+                    f"{agent_id!r} (model={agent_record.get('model')})"
                 )
                 return
             else:
