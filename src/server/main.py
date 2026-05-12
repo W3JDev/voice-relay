@@ -202,6 +202,7 @@ class SessionState:
     api_key_id: Optional[str] = None        # Which API key owns this session
     api_key_record: Optional[dict] = None    # Cached key metadata
     agent_id: Optional[str] = None           # Which agent backend is assigned
+    agent_voice: Optional[str] = None
 
     def touch(self) -> None:
         """Update last-activity timestamp."""
@@ -934,14 +935,18 @@ async def _get_session_backend(session: SessionState) -> AIBackend:
     """
     Resolve the AI backend for a session using the AgentRouter.
 
+    Also resolves the TTS voice for the session from the agent config.
     Falls back to constructing a backend from env vars if the router
     is not yet initialised (should not happen in normal operation).
     """
     if agent_router is not None:
-        return await agent_router.resolve_backend(
+        backend = await agent_router.resolve_backend(
             session,
             api_key_record=session.api_key_record,
         )
+        # Resolve agent voice from DB config
+        await _resolve_session_voice(session)
+        return backend
 
     # Fallback: construct from env vars directly (Phase 1 compat)
     logger.warning(
@@ -952,6 +957,23 @@ async def _get_session_backend(session: SessionState) -> AIBackend:
         url=session.backend_url_override,
         model=session.backend_model_override,
     )
+
+
+async def _resolve_session_voice(session: SessionState) -> None:
+    """Look up the agent's voice config from DB and set it on the session."""
+    if session.agent_voice:
+        return  # Already resolved (e.g. from config message)
+    agent_id = getattr(session, "agent_id", None)
+    if agent_id and db is not None:
+        try:
+            agent_record = await db.get_agent(agent_id)
+            if agent_record and agent_record.get("voice"):
+                session.agent_voice = agent_record["voice"]
+                logger.debug(
+                    f"Session {session.session_id}: agent voice = {session.agent_voice}"
+                )
+        except Exception as exc:
+            logger.warning(f"Failed to resolve agent voice: {exc}")
 
 
 def _create_fallback_backend(
@@ -1044,7 +1066,7 @@ async def _synthesize_and_send(session: SessionState, text: str) -> None:
     )
 
     try:
-        async for audio_chunk in tts.synthesize_stream(speech_text):
+        async for audio_chunk in tts.synthesize_stream(speech_text, voice=session.agent_voice):
             if session.cancel_event.is_set():
                 break
             audio_b64 = base64.b64encode(audio_chunk).decode()

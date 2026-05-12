@@ -65,6 +65,10 @@ class AgentConfig(BaseModel):
         default=None,
         description="Optional system prompt override for this agent.",
     )
+    voice: Optional[str] = Field(
+        default=None,
+        description="Kokoro TTS voice ID for this agent (e.g. 'am_adam', 'af_bella'). NULL uses server default.",
+    )
     is_default: bool = Field(
         default=False,
         description="Whether this agent is the system-wide default for new sessions.",

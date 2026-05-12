@@ -115,6 +115,12 @@ _MIGRATIONS: list[tuple[int, str]] = [
         );
         """,
     ),
+    (
+        2,
+        """
+        ALTER TABLE agents ADD COLUMN voice TEXT DEFAULT NULL;
+        """,
+    ),
 ]
 
 # Latest schema version is the highest migration number.
@@ -592,6 +598,7 @@ class Database:
         api_key: Optional[str] = None,
         system_prompt: Optional[str] = None,
         is_default: bool = False,
+        voice: Optional[str] = None,
     ) -> dict[str, Any]:
         """
         Create a new agent backend configuration.
@@ -625,8 +632,9 @@ class Database:
                 """
                 INSERT INTO agents
                     (id, name, backend_type, url, model,
-                     api_key, system_prompt, is_default, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     api_key, system_prompt, is_default, voice,
+                     created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     id,
@@ -637,6 +645,7 @@ class Database:
                     api_key,
                     system_prompt,
                     is_default,
+                    voice,
                     now,
                     now,
                 ),

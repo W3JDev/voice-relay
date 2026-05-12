@@ -109,14 +109,21 @@ class RelayTTS:
         """Return the name of the active backend."""
         return self._backend
 
-    async def synthesize_stream(self, text: str) -> AsyncGenerator[bytes, None]:
+    async def synthesize_stream(
+        self, text: str, voice: Optional[str] = None,
+    ) -> AsyncGenerator[bytes, None]:
         """Stream synthesised audio as raw PCM chunks.
+
+        Args:
+            text:  The text to synthesise.
+            voice: Optional Kokoro voice ID override (e.g. ``"am_adam"``).
+                   If ``None``, uses the instance default (``self._voice``).
 
         Yields:
             ``bytes`` -- raw PCM audio (24 kHz, 16-bit signed integer, mono).
         """
         if self._backend == "kokoro":
-            async for chunk in self._stream_kokoro(text):
+            async for chunk in self._stream_kokoro(text, voice=voice):
                 yield chunk
 
         elif self._backend == "edge_tts":
@@ -130,9 +137,12 @@ class RelayTTS:
     # ------------------------------------------------------------------
     # Kokoro / VSaaS
     # ------------------------------------------------------------------
-    async def _stream_kokoro(self, text: str) -> AsyncGenerator[bytes, None]:
+    async def _stream_kokoro(
+        self, text: str, voice: Optional[str] = None,
+    ) -> AsyncGenerator[bytes, None]:
         """Request PCM audio from the VSaaS gateway and yield chunks."""
         loop = asyncio.get_running_loop()
+        effective_voice = voice or self._voice
 
         try:
             # The OpenAI SDK's audio.speech.create returns an HttpxBinaryResponseContent.
@@ -141,6 +151,7 @@ class RelayTTS:
                 None,
                 self._kokoro_request,
                 text,
+                effective_voice,
             )
 
             # response.iter_bytes() gives us the streamed body in chunks.
@@ -152,11 +163,12 @@ class RelayTTS:
             logger.error(f"Kokoro TTS error: {exc}")
             yield self._generate_silence()
 
-    def _kokoro_request(self, text: str):
+    def _kokoro_request(self, text: str, voice: Optional[str] = None):
         """Blocking call -- meant to be run via ``run_in_executor``."""
+        effective_voice = voice or self._voice
         response = self._vsaas_client.audio.speech.create(
             model=self._kokoro_model,
-            voice=self._voice,
+            voice=effective_voice,
             input=text,
             response_format="pcm",
             extra_body={"sample_rate": SAMPLE_RATE},

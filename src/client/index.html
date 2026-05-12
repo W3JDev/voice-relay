@@ -846,6 +846,7 @@
         let isPlayingQueue       = false;
         let currentPlaybackSource = null;
         let currentGainNode      = null;
+        let nextStartTime        = 0;
 
         /* Transcript state */
         let currentResponseEl    = null;
@@ -1291,6 +1292,7 @@
             /* Immediately stop all audio playback */
             audioQueue = [];
             isPlayingQueue = false;
+            nextStartTime = 0;
 
             if (currentPlaybackSource) {
                 try { currentPlaybackSource.stop(); } catch (_) {}
@@ -1333,6 +1335,7 @@
                 isPlayingQueue = false;
                 currentPlaybackSource = null;
                 currentGainNode = null;
+                nextStartTime = 0;
                 onPlaybackComplete();
                 return;
             }
@@ -1359,39 +1362,34 @@
                 var buffer = ctx.createBuffer(1, float32.length, chunk.sampleRate);
                 buffer.copyToChannel(float32, 0);
 
-                /* Gain node for crossfade / barge-in muting */
-                var gainNode = ctx.createGain();
-                gainNode.gain.setValueAtTime(0, ctx.currentTime);
-                /* Fade in over 15ms */
-                gainNode.gain.linearRampToValueAtTime(1.0, ctx.currentTime + 0.015);
-                /* Fade out last 15ms */
-                var duration = buffer.duration;
-                if (duration > 0.03) {
-                    gainNode.gain.setValueAtTime(1.0, ctx.currentTime + duration - 0.015);
-                    gainNode.gain.linearRampToValueAtTime(0.0, ctx.currentTime + duration);
-                }
-
-                gainNode.connect(ctx.destination);
-
                 var source = ctx.createBufferSource();
                 source.buffer = buffer;
-                source.connect(gainNode);
+
+                /* Direct connection -- no gain envelope, no crossfade.
+                   Gapless scheduling via nextStartTime handles continuity. */
+                source.connect(ctx.destination);
 
                 currentPlaybackSource = source;
-                currentGainNode = gainNode;
+                currentGainNode = null;
 
                 source.onended = function () {
                     if (currentPlaybackSource === source) {
                         currentPlaybackSource = null;
-                        currentGainNode = null;
                     }
                     playNextInQueue();
                 };
 
-                source.start(0);
+                /* Schedule sample-accurate: each chunk starts exactly when
+                   the previous one ends.  The 5 ms lookahead gives the
+                   audio thread time to prepare the buffer. */
+                var startAt = Math.max(ctx.currentTime + 0.005, nextStartTime);
+                nextStartTime = startAt + buffer.duration;
+                source.start(startAt);
+
                 console.debug('[audio] playing chunk:', float32.length, 'samples,',
                               (float32.length / chunk.sampleRate).toFixed(2) + 's',
-                              'ctx state:', ctx.state);
+                              'scheduled at:', startAt.toFixed(3),
+                              'ctx time:', ctx.currentTime.toFixed(3));
             } catch (e) {
                 console.error('Audio playback error:', e);
                 playNextInQueue();

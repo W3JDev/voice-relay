@@ -164,6 +164,7 @@ class AgentUpdate(BaseModel):
     model: Optional[str] = Field(None, description="Model identifier.")
     api_key: Optional[str] = Field(None, description="API key for the backend.")
     system_prompt: Optional[str] = Field(None, description="System prompt override.")
+    voice: Optional[str] = Field(None, description="Kokoro TTS voice ID (e.g. 'am_adam', 'af_bella').")
     is_default: Optional[bool] = Field(None, description="Set as system-wide default.")
 
 
@@ -292,6 +293,7 @@ async def create_agent(
         api_key=body.api_key,
         system_prompt=body.system_prompt,
         is_default=body.is_default,
+        voice=body.voice,
     )
 
     logger.info(f"Admin: created agent {body.id!r}")
