@@ -313,7 +313,7 @@ async def startup():
     os.environ["_ADMIN_STT_BACKEND"] = getattr(stt, "backend", "unknown")
     os.environ["_ADMIN_TTS_BACKEND"] = getattr(tts, "backend", "unknown")
     os.environ["_ADMIN_VAD_BACKEND"] = getattr(vad, "backend", "unknown")
-    init_admin(db, sessions, _server_start_time)
+    init_admin(db, sessions, _server_start_time, agent_router=agent_router)
 
     # --- Session cleanup loop ---
     _cleanup_task = asyncio.create_task(_session_cleanup_loop())
@@ -750,11 +750,13 @@ async def _flush_speech_segment(session: SessionState, final: bool) -> None:
     if len(audio_data) == 0:
         return
 
+    stt_error = False
     try:
         transcript = await stt.transcribe(audio_data)
     except Exception as e:
         logger.error(f"Session {session.session_id}: STT error: {e}")
         transcript = ""
+        stt_error = True
 
     # Record STT usage (estimate seconds from audio length)
     stt_seconds = _estimate_audio_seconds(audio_data, settings.sample_rate)
@@ -766,6 +768,12 @@ async def _flush_speech_segment(session: SessionState, final: bool) -> None:
     )
 
     if not transcript or not transcript.strip():
+        # Notify client if STT failed or returned empty after a real attempt
+        if stt_error and ws is not None:
+            await ws.send_json({
+                "type": "stt_error",
+                "message": "Speech recognition failed. Please try again.",
+            })
         return
 
     session.pending_transcript = (
@@ -1008,6 +1016,12 @@ def _create_fallback_backend(
         url=url or settings.backend_url,
         model=model or settings.backend_model,
         api_key=settings.openai_api_key or os.getenv("OPENAI_API_KEY"),
+        system_prompt=(
+            "This conversation is happening via real-time voice chat. "
+            "Keep responses concise and conversational -- a few sentences "
+            "at most unless the topic genuinely needs depth. "
+            "No markdown, bullet points, code blocks, or special formatting."
+        ),
     )
 
 
@@ -1254,9 +1268,20 @@ async def _handle_config(session: SessionState, msg: dict) -> None:
                 # backend_url_override / backend_model_override here because
                 # that would bypass the cached-backend path and lose the
                 # agent's system_prompt.
+                old_agent = session.agent_id
                 session.agent_id = agent_id
                 session.backend_url_override = None
                 session.backend_model_override = None
+
+                # Clear conversation history when switching agents so the
+                # old agent's personality doesn't bleed into the new one.
+                if old_agent != agent_id:
+                    session.conversation_history = []
+                    session.agent_voice = None
+                    logger.info(
+                        f"Session {session.session_id}: agent switch "
+                        f"{old_agent!r} -> {agent_id!r}, history cleared"
+                    )
 
                 # Invalidate any cached per-session backend so the router
                 # re-resolves on the next voice turn

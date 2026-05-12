@@ -228,10 +228,10 @@ class WhisperSTT:
             except Exception as e:
                 logger.error(f"Local transcription error: {e}")
 
-        # Mock fallback
+        # Mock fallback -- return empty so fake text doesn't reach the LLM
         if self._backend == "mock":
-            logger.debug(f"Mock STT: received {len(audio)} samples")
-            return "[Mock transcription - install whisper for real STT]"
+            logger.debug(f"Mock STT: received {len(audio)} samples (no real backend)")
+            return ""
 
         return ""
 

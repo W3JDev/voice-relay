@@ -253,6 +253,12 @@ class AgentRouter:
             logger.info(f"seed_defaults: seeding default agent from env (url={url}, model={model})")
 
         agent_id = "default"
+        _seed_prompt = (
+            "This conversation is happening via real-time voice chat. "
+            "Keep responses concise and conversational -- a few sentences "
+            "at most unless the topic genuinely needs depth. "
+            "No markdown, bullet points, code blocks, or special formatting."
+        )
         try:
             await self._db.create_agent(
                 id=agent_id,
@@ -261,6 +267,7 @@ class AgentRouter:
                 model=model,
                 backend_type=backend_type,
                 api_key=api_key_val,
+                system_prompt=_seed_prompt,
                 is_default=True,
             )
             logger.info(f"seed_defaults: created agent '{agent_id}' as system default")
@@ -310,12 +317,20 @@ class AgentRouter:
         gateway_url = os.environ.get("OPENCLAW_GATEWAY_URL")
         gateway_token = os.environ.get("OPENCLAW_GATEWAY_TOKEN")
 
+        _voice_system_prompt = (
+            "This conversation is happening via real-time voice chat. "
+            "Keep responses concise and conversational -- a few sentences "
+            "at most unless the topic genuinely needs depth. "
+            "No markdown, bullet points, code blocks, or special formatting."
+        )
+
         if gateway_url and gateway_token and not url_override:
             return AIBackend(
                 backend_type="openai",
                 url=f"{gateway_url.rstrip('/')}/v1",
                 model=model_override or "openclaw:voice",
                 api_key=gateway_token,
+                system_prompt=_voice_system_prompt,
             )
 
         return AIBackend(
@@ -326,4 +341,5 @@ class AgentRouter:
                 os.environ.get("OPENCLAW_OPENAI_API_KEY")
                 or os.environ.get("OPENAI_API_KEY")
             ),
+            system_prompt=_voice_system_prompt,
         )

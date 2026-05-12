@@ -78,11 +78,15 @@ _sessions: Optional[Dict[str, Any]] = None
 #: Server start time (epoch seconds) for uptime reporting.
 _server_start: float = 0.0
 
+#: Reference to the AgentRouter for cache invalidation on admin changes.
+_agent_router: Optional[Any] = None
+
 
 def init_admin(
     db: Database,
     sessions: Optional[Dict[str, Any]] = None,
     server_start: float = 0.0,
+    agent_router: Optional[Any] = None,
 ) -> None:
     """Inject dependencies from the main application at startup.
 
@@ -98,11 +102,14 @@ def init_admin(
         server_start: ``time.time()`` value captured when the server started,
                       used to compute the ``uptime`` field in
                       ``GET /admin/stats``.
+        agent_router: The :class:`~agents.AgentRouter` instance for cache
+                      invalidation when agents are updated or deleted.
     """
-    global _db, _sessions, _server_start
+    global _db, _sessions, _server_start, _agent_router
     _db = db
     _sessions = sessions
     _server_start = server_start or time.time()
+    _agent_router = agent_router
     logger.info("Admin API initialised")
 
 
@@ -366,6 +373,11 @@ async def update_agent(
 
     await db.update_agent(agent_id, **updates)
 
+    # Invalidate cached backend so next session picks up updated config
+    if _agent_router is not None:
+        _agent_router.invalidate_cache(agent_id)
+        logger.debug(f"Admin: invalidated backend cache for agent {agent_id!r}")
+
     updated = await db.get_agent(agent_id)
     assert updated is not None
 
@@ -395,6 +407,12 @@ async def delete_agent(
         raise HTTPException(status_code=404, detail=f"Agent not found: {agent_id!r}")
 
     await db.delete_agent(agent_id)
+
+    # Invalidate cached backend for the deleted agent
+    if _agent_router is not None:
+        _agent_router.invalidate_cache(agent_id)
+        logger.debug(f"Admin: invalidated backend cache for deleted agent {agent_id!r}")
+
     logger.info(f"Admin: deleted agent {agent_id!r}")
 
 
