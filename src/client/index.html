@@ -840,13 +840,19 @@
         let reconnectDelay       = 1000;
         const MAX_RECONNECT_DELAY = 16000;
 
-        /* Audio playback state */
+        /* Audio playback state -- ring-buffer approach */
         let playbackCtx          = null;
-        let audioQueue           = [];
-        let isPlayingQueue       = false;
-        let currentPlaybackSource = null;
+        let playbackWorklet      = null;
+        let audioRingBuffer      = null;   /* SharedArrayBuffer or Float32Array */
+        let ringWritePos         = 0;
+        let ringReadPos          = 0;
+        const RING_BUFFER_SECONDS = 30;    /* 30 s at 24 kHz = 720000 samples */
+        let ringBufferSize       = 0;
+        let isPlayingAudio       = false;
+        let currentPlaybackSource = null;  /* kept for barge-in compat */
         let currentGainNode      = null;
-        let nextStartTime        = 0;
+        let prebufferThreshold   = 0;      /* samples to accumulate before starting */
+        let prebufferReached     = false;
 
         /* Transcript state */
         let currentResponseEl    = null;
@@ -1237,7 +1243,10 @@
                         /* Reset streaming state for upcoming response */
                         streamingText = '';
                         currentResponseEl = null;
-                        audioQueue = [];
+                        /* Flush ring buffer for the new response */
+                        ringWritePos = 0;
+                        ringReadPos = 0;
+                        prebufferReached = false;
                     }
                     break;
 
@@ -1290,18 +1299,18 @@
          * ================================================================ */
         function handleBargeIn() {
             /* Immediately stop all audio playback */
-            audioQueue = [];
-            isPlayingQueue = false;
-            nextStartTime = 0;
+            if (playbackWorklet) {
+                try { playbackWorklet.disconnect(); } catch (_) {}
+                playbackWorklet = null;
+            }
+            isPlayingAudio = false;
+            currentPlaybackSource = null;
+            currentGainNode = null;
 
-            if (currentPlaybackSource) {
-                try { currentPlaybackSource.stop(); } catch (_) {}
-                currentPlaybackSource = null;
-            }
-            if (currentGainNode) {
-                try { currentGainNode.gain.setValueAtTime(0, playbackCtx.currentTime); } catch (_) {}
-                currentGainNode = null;
-            }
+            /* Flush the ring buffer */
+            ringWritePos = 0;
+            ringReadPos = 0;
+            prebufferReached = false;
 
             flashBargeIn();
             setStatus(continuousMode ? 'Listening (continuous)...' : 'Listening...', true);
@@ -1312,7 +1321,18 @@
          * ================================================================ */
         function ensurePlaybackContext(sampleRate) {
             if (!playbackCtx || playbackCtx.state === 'closed') {
-                playbackCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: sampleRate });
+                /* Let the browser pick its native sample rate for best quality.
+                   We resample from 24 kHz to native rate when writing the ring buffer. */
+                playbackCtx = new (window.AudioContext || window.webkitAudioContext)();
+                ringBufferSize = Math.ceil(RING_BUFFER_SECONDS * playbackCtx.sampleRate);
+                audioRingBuffer = new Float32Array(ringBufferSize);
+                ringWritePos = 0;
+                ringReadPos = 0;
+                prebufferReached = false;
+                /* Pre-buffer: accumulate 400ms before playback starts */
+                prebufferThreshold = Math.ceil(0.4 * playbackCtx.sampleRate);
+                console.log('[audio] context created, native sampleRate:', playbackCtx.sampleRate,
+                            'ring buffer:', ringBufferSize, 'samples');
             }
             if (playbackCtx.state === 'suspended') {
                 playbackCtx.resume();
@@ -1322,78 +1342,137 @@
 
         function queueAudioChunk(base64Data, sampleRate) {
             var sr = sampleRate || 24000;
-            console.debug('[audio] queued chunk, queue length:', audioQueue.length + 1,
-                          'sampleRate:', sr, 'b64 length:', base64Data.length);
-            audioQueue.push({ data: base64Data, sampleRate: sr });
-            if (!isPlayingQueue) {
-                playNextInQueue();
+            var ctx = ensurePlaybackContext(sr);
+
+            /* Decode base64 → Int16 PCM → Float32 */
+            var binaryString = atob(base64Data);
+            var bytes = new Uint8Array(binaryString.length);
+            for (var i = 0; i < binaryString.length; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            var int16 = new Int16Array(bytes.buffer);
+            var float32 = new Float32Array(int16.length);
+            for (var j = 0; j < int16.length; j++) {
+                float32[j] = int16[j] / 32768.0;
+            }
+
+            /* Resample from source rate to context native rate if needed */
+            var resampled;
+            if (sr !== ctx.sampleRate) {
+                var ratio = ctx.sampleRate / sr;
+                var outLen = Math.ceil(float32.length * ratio);
+                resampled = new Float32Array(outLen);
+                for (var k = 0; k < outLen; k++) {
+                    var srcIdx = k / ratio;
+                    var idx0 = Math.floor(srcIdx);
+                    var idx1 = Math.min(idx0 + 1, float32.length - 1);
+                    var frac = srcIdx - idx0;
+                    resampled[k] = float32[idx0] * (1 - frac) + float32[idx1] * frac;
+                }
+            } else {
+                resampled = float32;
+            }
+
+            /* Write resampled audio into the ring buffer */
+            for (var m = 0; m < resampled.length; m++) {
+                audioRingBuffer[(ringWritePos + m) % ringBufferSize] = resampled[m];
+            }
+            ringWritePos = (ringWritePos + resampled.length) % ringBufferSize;
+
+            console.debug('[audio] wrote', resampled.length, 'samples to ring buffer',
+                          '(src:', float32.length, '@' + sr + 'Hz → native @' + ctx.sampleRate + 'Hz)');
+
+            /* Start playback once we have enough buffered audio */
+            if (!isPlayingAudio) {
+                var buffered = bufferedSamples();
+                if (!prebufferReached && buffered >= prebufferThreshold) {
+                    prebufferReached = true;
+                    console.log('[audio] prebuffer reached:', buffered, 'samples, starting playback');
+                    startRingPlayback(ctx);
+                } else if (prebufferReached) {
+                    startRingPlayback(ctx);
+                }
             }
         }
 
-        function playNextInQueue() {
-            if (audioQueue.length === 0) {
-                isPlayingQueue = false;
-                currentPlaybackSource = null;
-                currentGainNode = null;
-                nextStartTime = 0;
-                onPlaybackComplete();
-                return;
+        function bufferedSamples() {
+            if (ringWritePos >= ringReadPos) {
+                return ringWritePos - ringReadPos;
             }
+            return ringBufferSize - ringReadPos + ringWritePos;
+        }
 
-            isPlayingQueue = true;
-            var chunk = audioQueue.shift();
+        function startRingPlayback(ctx) {
+            if (isPlayingAudio) return;
+            isPlayingAudio = true;
 
-            try {
-                /* Decode base64 to raw bytes */
-                var binaryString = atob(chunk.data);
-                var bytes = new Uint8Array(binaryString.length);
-                for (var i = 0; i < binaryString.length; i++) {
-                    bytes[i] = binaryString.charCodeAt(i);
-                }
+            /* Use ScriptProcessorNode as the pull-based audio sink.
+               (AudioWorklet would be cleaner but requires a separate file
+                or Blob URL registration; ScriptProcessorNode works inline
+                and is still supported in all browsers as of 2026.) */
+            var bufSize = 4096;  /* ~85ms at 48kHz — good balance of latency vs stability */
+            var processor = ctx.createScriptProcessor(bufSize, 0, 1);
 
-                /* Convert Int16 PCM to Float32 */
-                var int16 = new Int16Array(bytes.buffer);
-                var float32 = new Float32Array(int16.length);
-                for (var j = 0; j < int16.length; j++) {
-                    float32[j] = int16[j] / 32768.0;
-                }
+            processor.onaudioprocess = function (e) {
+                var output = e.outputBuffer.getChannelData(0);
+                var available = bufferedSamples();
 
-                var ctx = ensurePlaybackContext(chunk.sampleRate);
-                var buffer = ctx.createBuffer(1, float32.length, chunk.sampleRate);
-                buffer.copyToChannel(float32, 0);
+                if (available === 0) {
+                    /* Buffer underrun — output silence.  If no audio has
+                       arrived for a while, we are done playing. */
+                    for (var i = 0; i < output.length; i++) output[i] = 0;
 
-                var source = ctx.createBufferSource();
-                source.buffer = buffer;
-
-                /* Direct connection -- no gain envelope, no crossfade.
-                   Gapless scheduling via nextStartTime handles continuity. */
-                source.connect(ctx.destination);
-
-                currentPlaybackSource = source;
-                currentGainNode = null;
-
-                source.onended = function () {
-                    if (currentPlaybackSource === source) {
-                        currentPlaybackSource = null;
+                    /* Check if we should stop (response might be complete) */
+                    if (prebufferReached) {
+                        clearTimeout(processor._drainTimer);
+                        processor._drainTimer = setTimeout(function () {
+                            if (bufferedSamples() === 0 && isPlayingAudio) {
+                                stopRingPlayback();
+                            }
+                        }, 500);
                     }
-                    playNextInQueue();
-                };
+                    return;
+                }
 
-                /* Schedule sample-accurate: each chunk starts exactly when
-                   the previous one ends.  The 5 ms lookahead gives the
-                   audio thread time to prepare the buffer. */
-                var startAt = Math.max(ctx.currentTime + 0.005, nextStartTime);
-                nextStartTime = startAt + buffer.duration;
-                source.start(startAt);
+                /* Clear any pending drain timer since we have data */
+                clearTimeout(processor._drainTimer);
 
-                console.debug('[audio] playing chunk:', float32.length, 'samples,',
-                              (float32.length / chunk.sampleRate).toFixed(2) + 's',
-                              'scheduled at:', startAt.toFixed(3),
-                              'ctx time:', ctx.currentTime.toFixed(3));
-            } catch (e) {
-                console.error('Audio playback error:', e);
-                playNextInQueue();
+                var toRead = Math.min(output.length, available);
+                for (var i = 0; i < toRead; i++) {
+                    output[i] = audioRingBuffer[(ringReadPos + i) % ringBufferSize];
+                }
+                ringReadPos = (ringReadPos + toRead) % ringBufferSize;
+
+                /* Zero-fill any remaining output if we ran short */
+                for (var i = toRead; i < output.length; i++) {
+                    output[i] = 0;
+                }
+            };
+
+            processor.connect(ctx.destination);
+            playbackWorklet = processor;
+            currentPlaybackSource = processor;  /* for barge-in detection */
+            console.log('[audio] ring playback started (ScriptProcessor, bufSize=' + bufSize + ')');
+        }
+
+        function stopRingPlayback() {
+            if (!isPlayingAudio) return;
+            isPlayingAudio = false;
+
+            if (playbackWorklet) {
+                try { playbackWorklet.disconnect(); } catch (_) {}
+                playbackWorklet = null;
             }
+            currentPlaybackSource = null;
+            currentGainNode = null;
+
+            /* Reset ring buffer for next utterance */
+            ringWritePos = 0;
+            ringReadPos = 0;
+            prebufferReached = false;
+
+            console.log('[audio] ring playback stopped');
+            onPlaybackComplete();
         }
 
         function onPlaybackComplete() {

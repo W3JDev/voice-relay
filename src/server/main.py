@@ -1066,10 +1066,28 @@ async def _synthesize_and_send(session: SessionState, text: str) -> None:
     )
 
     try:
+        # Accumulate small TTS chunks into larger blocks before sending.
+        # Target: ~2 seconds of audio per WebSocket message (96000 bytes
+        # at 24 kHz 16-bit mono) for smooth client-side ring-buffer filling.
+        ACCUMULATE_TARGET = 96000  # bytes (~2 s)
+        accum = bytearray()
+
         async for audio_chunk in tts.synthesize_stream(speech_text, voice=session.agent_voice):
             if session.cancel_event.is_set():
                 break
-            audio_b64 = base64.b64encode(audio_chunk).decode()
+            accum.extend(audio_chunk)
+            if len(accum) >= ACCUMULATE_TARGET:
+                audio_b64 = base64.b64encode(bytes(accum)).decode()
+                await ws.send_json({
+                    "type": "audio_chunk",
+                    "data": audio_b64,
+                    "sample_rate": 24000,
+                })
+                accum = bytearray()
+
+        # Flush remaining accumulated audio
+        if accum and not session.cancel_event.is_set():
+            audio_b64 = base64.b64encode(bytes(accum)).decode()
             await ws.send_json({
                 "type": "audio_chunk",
                 "data": audio_b64,
