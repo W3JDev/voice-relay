@@ -44,6 +44,7 @@ from .vad import VoiceActivityDetector
 from .database import Database
 from .agents import AgentRouter
 from .admin import admin_router, init_admin
+from .telnyx import telnyx_router, configure_from_env as configure_telnyx
 from .text_utils import clean_for_speech
 
 
@@ -243,6 +244,12 @@ app.add_middleware(
 
 # Mount admin API
 app.include_router(admin_router, prefix="/admin")
+
+# Configure Telnyx adapter from environment
+configure_telnyx()
+
+# Mount Telnyx webhook router (route paths already include /webhooks)
+app.include_router(telnyx_router, prefix="")
 
 # Global instances (initialized on startup)
 stt: Optional[WhisperSTT] = None
