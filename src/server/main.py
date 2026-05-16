@@ -159,9 +159,9 @@ settings = _load_extra_env(settings)
 # Per-session state
 # ---------------------------------------------------------------------------
 
-# VAD tuning constants
-_SILENCE_FLUSH_MS = 300     # silence duration to flush segment to STT
-_SILENCE_FINAL_MS = 1500    # silence duration to mark transcript as final
+# VAD tuning constants (overridable via env vars)
+_SILENCE_FLUSH_MS = int(os.environ.get("OPENCLAW_SILENCE_FLUSH_MS", 300))
+_SILENCE_FINAL_MS = int(os.environ.get("OPENCLAW_SILENCE_FINAL_MS", 1500))
 _SAMPLES_PER_MS_16K = 16    # 16 kHz -> 16 samples per ms
 
 
@@ -1080,10 +1080,10 @@ async def _synthesize_and_send(session: SessionState, text: str) -> None:
     )
 
     try:
-        # Accumulate small TTS chunks into larger blocks before sending.
-        # Target: ~2 seconds of audio per WebSocket message (96000 bytes
-        # at 24 kHz 16-bit mono) for smooth client-side ring-buffer filling.
-        ACCUMULATE_TARGET = 96000  # bytes (~2 s)
+        # Send audio with minimal buffering for low-latency streaming.
+        # Target: ~100 ms of audio per WebSocket message (4800 bytes
+        # at 24 kHz 16-bit mono).
+        ACCUMULATE_TARGET = 4800  # bytes (~100 ms)
         accum = bytearray()
 
         async for audio_chunk in tts.synthesize_stream(speech_text, voice=session.agent_voice):

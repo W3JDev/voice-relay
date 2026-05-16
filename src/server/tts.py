@@ -154,10 +154,9 @@ class RelayTTS:
                 effective_voice,
             )
 
-            # Yield larger chunks to reduce WebSocket overhead and give the
-            # client ring-buffer more contiguous audio per write.
-            # 48000 bytes = ~1 second at 24 kHz 16-bit mono.
-            for chunk in response.iter_bytes(chunk_size=48000):
+            # Yield small chunks for low-latency streaming.
+            # 4800 bytes = ~100 ms at 24 kHz 16-bit mono.
+            for chunk in response.iter_bytes(chunk_size=4800):
                 if chunk:
                     yield chunk
 
