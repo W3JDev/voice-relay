@@ -367,6 +367,62 @@ async def health():
 
 
 # ---------------------------------------------------------------------------
+# HTTP TTS endpoint for WebUI integration
+# ---------------------------------------------------------------------------
+
+@app.post("/api/tts")
+async def http_tts(request: Request):
+    """HTTP TTS endpoint for WebUI integration.
+    POST JSON: {"text": "...", "voice": "af_heart"}
+    Returns: audio/wav stream
+    """
+    from fastapi.responses import StreamingResponse
+    from fastapi import HTTPException
+    import io
+
+    body = await request.json()
+    text = body.get("text", "").strip()
+    voice_override = body.get("voice", None)
+
+    if not text:
+        raise HTTPException(status_code=400, detail="text required")
+
+    if not tts:
+        raise HTTPException(status_code=503, detail="TTS not initialised")
+
+    # Override voice if requested
+    orig_voice = tts._voice
+    if voice_override:
+        tts._voice = voice_override
+
+    try:
+        # Collect all PCM chunks
+        pcm_chunks = []
+        async for chunk in tts.synthesize(text):
+            pcm_chunks.append(chunk)
+        pcm_data = b"".join(pcm_chunks)
+
+        # Return as wav with proper headers
+        import wave
+        buf = io.BytesIO()
+        with wave.open(buf, 'wb') as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)  # 16-bit
+            wf.setframerate(24000)
+            wf.writeframes(pcm_data)
+        buf.seek(0)
+
+        return StreamingResponse(
+            iter([buf.read()]),
+            media_type="audio/wav",
+            headers={"Cache-Control": "no-cache"}
+        )
+    finally:
+        if voice_override:
+            tts._voice = orig_voice
+
+
+# ---------------------------------------------------------------------------
 # Static pages (kept from upstream)
 # ---------------------------------------------------------------------------
 
